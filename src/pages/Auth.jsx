@@ -11,7 +11,7 @@ export default function Auth({ onLogin }) {
   const navigate = useNavigate();
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', type: 'personal' });
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', type: 'aluno' });
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function Auth({ onLogin }) {
     try {
       const user = registerUser(registerForm);
       onLogin(user);
-      navigate('/dashboard');
+      navigate(user.type === 'aluno' ? '/aluno' : '/dashboard');
     } catch (err) {
       setError(err.message);
     }

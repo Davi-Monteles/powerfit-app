@@ -3,6 +3,8 @@ import { useAuth } from '../App';
 import { getStudentById, getWorkouts, getEvolutionByStudent, calculateIMC, calculateTMB, calculateCalories } from '../lib/storage';
 import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import PremiumLobby from './PremiumLobby';
+import AIAssistantNotice from '../components/AIAssistantNotice';
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
@@ -57,7 +59,13 @@ export default function StudentDashboard() {
         <h2><LayoutDashboard size={24} style={{ color: 'var(--primary)' }} /> Olá, {student.name.split(' ')[0]}! 👋</h2>
       </div>
 
-      {/* Metrics */}
+      {!student.isPremium ? (
+        <PremiumLobby onUpgrade={() => setStudent(prev => ({...prev, isPremium: true}))} />
+      ) : (
+        <>
+          <AIAssistantNotice student={student} workouts={workouts} evolution={evolution} />
+          
+          {/* Metrics */}
       <div className="stats-grid" style={{ marginBottom: '24px' }}>
         <div className="stat-card">
           <div className="stat-icon orange"><Scale size={22} color="white" /></div>
@@ -134,6 +142,8 @@ export default function StudentDashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+        </>
+      )}
         </>
       )}
     </div>

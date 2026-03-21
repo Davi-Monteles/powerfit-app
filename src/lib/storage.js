@@ -38,14 +38,32 @@ export function registerUser(userData) {
   const exists = users.find(u => u.email === userData.email);
   if (exists) throw new Error('Email já cadastrado');
   
+  const studentId = userData.type === 'aluno' ? generateId() : undefined;
+  
   const user = {
     id: generateId(),
     ...userData,
+    studentId,
     createdAt: new Date().toISOString(),
   };
   users.push(user);
   setItem(KEYS.USERS, users);
   setItem(KEYS.CURRENT_USER, user);
+  
+  if (userData.type === 'aluno') {
+    const students = getStudents();
+    students.push({
+      id: studentId,
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone || '',
+      isPremium: false, // Default to non-premium
+      workoutIds: [],
+      createdAt: new Date().toISOString()
+    });
+    setItem(KEYS.STUDENTS, students);
+  }
+  
   return user;
 }
 
