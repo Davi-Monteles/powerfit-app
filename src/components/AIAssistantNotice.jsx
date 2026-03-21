@@ -5,13 +5,23 @@ export default function AIAssistantNotice({ student, workouts, evolution }) {
   const [notice, setNotice] = useState(null);
 
   useEffect(() => {
-    // Mock AI Logic
-    const tips = [
-      "Talvez você tenha deixado passar o treino de Bíceps hoje. Que tal encaixar amanhã?",
+    const targets = student?.targetMuscles || [];
+    const goal = student?.objective || 'Hipertrofia';
+
+    let tips = [
       "Excelente evolução essa semana! Mantenha o ritmo constante.",
-      "Identifiquei que você tem treinado bastante, não se esqueça do descanso vital para hipertrofia!",
-      "Sua meta é focar no ganho de massa. Tente aumentar 2kg no leg press hoje se sentir segurança."
+      "Identifiquei que você tem treinado bastante, não se esqueça do descanso vital!",
+      `O seu foco selecionado é ${goal}. Lembre-se de manter sua dieta alinhada a esse objetivo para maximizar resultados.`
     ];
+
+    if (targets.length > 0) {
+      const randomTarget = targets[Math.floor(Math.random() * targets.length)];
+      tips.push(`No seu Mapa Corporal, você selecionou ${randomTarget}. Lembre-se de intensificar o treino dessa área!`);
+      tips.push(`Você destacou ${randomTarget} no seu Alvo 3D. Que tal priorizar os exercícios focados nessa região hoje?`);
+    } else {
+      tips.push("Personalize seu Mapa Corporal 3D (no menu lateral) para receber dicas direcionadas aos seus músculos alvo!");
+    }
+
     setNotice(tips[Math.floor(Math.random() * tips.length)]);
   }, [student, workouts, evolution]);
 

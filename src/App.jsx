@@ -10,6 +10,7 @@ import Evolution from './pages/Evolution';
 import Schedule from './pages/Schedule';
 import Photos from './pages/Photos';
 import StudentDashboard from './pages/StudentDashboard';
+import BodyTargets from './pages/BodyTargets';
 import Settings from './pages/Settings';
 import StudentHistory from './pages/StudentHistory';
 import Sidebar from './components/Sidebar';
@@ -108,6 +109,7 @@ export default function App() {
               <Route path="/settings" element={<ProtectedRoute><DashboardLayout><Settings /></DashboardLayout></ProtectedRoute>} />
               {/* Student Route */}
               <Route path="/aluno" element={<ProtectedRoute allowedType="aluno"><DashboardLayout><StudentDashboard /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/body-targets" element={<ProtectedRoute allowedType="aluno"><DashboardLayout><BodyTargets /></DashboardLayout></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <Toast toasts={toasts} />
