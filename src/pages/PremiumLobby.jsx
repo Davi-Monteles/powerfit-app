@@ -1,24 +1,38 @@
 import { useState } from 'react';
 import { useAuth } from '../App';
-import { getStudents, saveStudent } from '../lib/storage';
-import { Star, Zap, Activity, Clock, FileText } from 'lucide-react';
+import { getStudents, saveStudent, getMercadoPagoToken } from '../lib/storage';
+import { Star, Zap, Activity, Clock } from 'lucide-react';
 
 export default function PremiumLobby({ onUpgrade }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const handleSubscribe = () => {
+  const fallbackUpgrade = () => {
+    const currentStudent = getStudents().find(s => s.id === user.studentId);
+    if (currentStudent) {
+      saveStudent({ ...currentStudent, isPremium: true });
+      if (onUpgrade) onUpgrade();
+    }
+    setLoading(false);
+  };
+
+  const handleSubscribe = async () => {
     setLoading(true);
-    setTimeout(() => {
-      // Mock subscription upgrade
-      const currentStudent = getStudents().find(s => s.id === user.studentId);
-      if (currentStudent) {
-        saveStudent({ ...currentStudent, isPremium: true });
-        // Call callback to refresh parent component state
-        if (onUpgrade) onUpgrade();
-      }
-      setLoading(false);
-    }, 1500);
+    const token = getMercadoPagoToken();
+    try {
+      if (!token) throw new Error('Mock');
+      const res = await fetch('/api/mercadopago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, title: 'PowerFit Premium', price: 24.90, email: user?.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Erro');
+      window.location.href = data.init_point;
+    } catch {
+      // Mock upgrade if MP is unconfigured
+      setTimeout(fallbackUpgrade, 1500);
+    }
   };
 
   return (

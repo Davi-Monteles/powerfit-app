@@ -24,11 +24,32 @@ export default function StudentDashboard() {
       setStudent(s);
       if (s) {
         const all = getWorkouts();
-        setWorkouts(all.filter(w => s.workoutIds?.includes(w.id)));
+        // legacy support
+        const legacyWorkouts = all.filter(w => s.workoutIds?.includes(w.id)).map(w => ({ ...w, day: 'Geral' }));
+        // new schedule support
+        const scheduledWorkouts = (s.workoutSchedule || []).map(schedule => {
+          const workout = all.find(w => w.id === schedule.workoutId);
+          return workout ? { ...workout, scheduleId: schedule.id, day: schedule.day } : null;
+        }).filter(Boolean);
+
+        setWorkouts([...legacyWorkouts, ...scheduledWorkouts]);
         setEvolution(getEvolutionByStudent(s.id));
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (student && !student.isPremium) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('payment') === 'success') {
+        import('../lib/storage').then(({ saveStudent, getStudentById }) => {
+          saveStudent({ ...student, isPremium: true });
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setStudent(getStudentById(student.id));
+        });
+      }
+    }
+  }, [student]);
 
   if (!student) return (
     <div className="page-container"><div className="empty-state"><Activity size={64} /><h3>Perfil não encontrado</h3><p>Contate seu personal trainer</p></div></div>
@@ -105,20 +126,36 @@ export default function StudentDashboard() {
           Nenhum treino atribuído pelo personal
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
-          {workouts.map(w => (
-            <div key={w.id} className="card card-glow" style={{ padding: '18px' }}>
-              <h4 style={{ marginBottom: '6px' }}>{w.name}</h4>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{w.description}</p>
-              {w.exercises?.map((ex, i) => (
-                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '6px 10px', marginBottom: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem' }}>
-                  <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gradient-primary)', color: 'white', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', flexShrink: 0 }}>{i+1}</span>
-                  <span style={{ fontWeight: '600' }}>{ex.name}</span>
-                  <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>{ex.sets}x{ex.reps} {ex.weight ? `• ${ex.weight}kg` : ''} {ex.rest ? `• ${ex.rest}s` : ''}</span>
+        <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>
+          {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo', 'Geral'].map(day => {
+            const dayWorkouts = workouts.filter(w => w.day === day);
+            if (dayWorkouts.length === 0) return null;
+
+            return (
+              <div key={day} className="card card-glow" style={{ padding: '20px' }}>
+                <h4 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
+                   <Calendar size={18} /> {day}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {dayWorkouts.map((w, idx) => (
+                    <div key={w.scheduleId || idx} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)' }}>
+                      <h5 style={{ marginBottom: '6px', fontSize: '1rem' }}>{w.name}</h5>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{w.description}</p>
+                      {w.exercises?.map((ex, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '6px 10px', marginBottom: '4px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem' }}>
+                          <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gradient-primary)', color: 'white', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', flexShrink: 0 }}>{i+1}</span>
+                          <span style={{ fontWeight: '600' }}>{ex.name}</span>
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                            {ex.sets}x{ex.reps} {ex.weight ? `• ${ex.weight}kg` : ''} {ex.rest ? `• ${ex.rest}s` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

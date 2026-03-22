@@ -12,6 +12,7 @@ export default function Students() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [assigningStudent, setAssigningStudent] = useState(null);
+  const [assignDay, setAssignDay] = useState('Segunda');
   const addToast = useToast();
   const navigate = useNavigate();
 
@@ -47,10 +48,10 @@ export default function Students() {
   const openAssign = (student) => { setAssigningStudent(student); setShowAssignModal(true); };
   
   const handleAssign = (workoutId) => {
-    assignWorkoutToStudent(workoutId, assigningStudent.id);
+    assignWorkoutToStudent(workoutId, assigningStudent.id, assignDay);
     setStudents(getStudents());
     setShowAssignModal(false);
-    addToast('Treino atribuído ao aluno!', 'success');
+    addToast(`Treino atribuído para ${assignDay}!`, 'success');
   };
 
   return (
@@ -197,8 +198,20 @@ export default function Students() {
               <button className="modal-close" onClick={() => setShowAssignModal(false)}><X size={20} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
-              Selecione um treino para <strong>{assigningStudent?.name}</strong>:
+              Selecione um treino e dia da semana para <strong>{assigningStudent?.name}</strong>:
             </p>
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label">Dia da Semana</label>
+              <select className="form-select" value={assignDay} onChange={(e) => setAssignDay(e.target.value)}>
+                <option value="Segunda">Segunda-feira</option>
+                <option value="Terça">Terça-feira</option>
+                <option value="Quarta">Quarta-feira</option>
+                <option value="Quinta">Quinta-feira</option>
+                <option value="Sexta">Sexta-feira</option>
+                <option value="Sábado">Sábado</option>
+                <option value="Domingo">Domingo</option>
+              </select>
+            </div>
             {workouts.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
                 Nenhum treino criado ainda. Crie um treino primeiro!

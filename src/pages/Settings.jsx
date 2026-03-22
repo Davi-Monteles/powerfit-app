@@ -1,13 +1,30 @@
-import { useState, useRef } from 'react';
-import { exportAllData, importData } from '../lib/storage';
-import { useToast, useTheme } from '../App';
-import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { exportAllData, importData, getMercadoPagoToken, saveMercadoPagoToken, getStudentById, saveStudent } from '../lib/storage';
+import { useToast, useTheme, useAuth } from '../App';
+import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield, CreditCard, User } from 'lucide-react';
 
 export default function Settings() {
+  const { user } = useAuth();
   const addToast = useToast();
   const { theme, toggleTheme } = useTheme();
   const fileInputRef = useRef(null);
+  
+  const isStudent = user?.type === 'aluno';
+  const studentData = isStudent && user?.studentId ? getStudentById(user.studentId) : null;
+  
   const [importing, setImporting] = useState(false);
+  const [mpToken, setMpToken] = useState('');
+  const [profile, setProfile] = useState({
+    weight: studentData?.weight || '',
+    height: studentData?.height || '',
+    birthDate: studentData?.birthDate || ''
+  });
+
+  useEffect(() => {
+    if (!isStudent) {
+      setMpToken(getMercadoPagoToken());
+    }
+  }, [isStudent]);
 
   const handleExport = () => {
     try {
@@ -43,6 +60,23 @@ export default function Settings() {
     setTimeout(() => window.location.reload(), 1500);
   };
 
+  const handleSaveMpToken = () => {
+    saveMercadoPagoToken(mpToken);
+    addToast('Token do Mercado Pago salvo com sucesso!', 'success');
+  };
+
+  const handleSaveProfile = () => {
+    if (studentData) {
+      saveStudent({
+        ...studentData,
+        weight: Number(profile.weight),
+        height: Number(profile.height),
+        birthDate: profile.birthDate
+      });
+      addToast('Perfil atualizado com sucesso!', 'success');
+    }
+  };
+
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
@@ -50,6 +84,66 @@ export default function Settings() {
       </div>
 
       <div style={{ display: 'grid', gap: '20px', maxWidth: '600px' }}>
+        
+        {/* Profile (Only for Students) */}
+        {isStudent && (
+          <div className="card" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <User size={22} style={{ color: 'var(--primary)' }} />
+              <div>
+                <h4 style={{ fontSize: '1rem' }}>Meu Perfil</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Mantenha suas medidas atualizadas</p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Peso (kg)</label>
+                <input type="number" step="0.1" className="form-input" value={profile.weight} onChange={e => setProfile({...profile, weight: e.target.value})} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Altura (cm)</label>
+                <input type="number" className="form-input" value={profile.height} onChange={e => setProfile({...profile, height: e.target.value})} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Nascimento</label>
+                <input type="date" className="form-input" value={profile.birthDate} onChange={e => setProfile({...profile, birthDate: e.target.value})} />
+              </div>
+            </div>
+            
+            <button className="btn btn-primary" onClick={handleSaveProfile}>
+              Salvar Perfil
+            </button>
+          </div>
+        )}
+
+        {/* Mercado Pago Integration (Only for Personal) */}
+        {!isStudent && (
+          <div className="card" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <CreditCard size={22} style={{ color: 'var(--primary)' }} />
+              <div>
+                <h4 style={{ fontSize: '1rem' }}>Integração Financeira</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Configurar pagamentos via Mercado Pago</p>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Access Token (Produção)</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="APP_USR-..." 
+                value={mpToken} 
+                onChange={e => setMpToken(e.target.value)} 
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Necessário para gerar links de pagamento reais para o Plano Premium.
+              </p>
+            </div>
+            <button className="btn btn-primary" onClick={handleSaveMpToken}>Salvar Token</button>
+          </div>
+        )}
+
         {/* Theme */}
         <div className="card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>

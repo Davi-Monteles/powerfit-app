@@ -10,6 +10,7 @@ const KEYS = {
   PHOTOS: 'powerfit_photos',
   THEME: 'powerfit_theme',
   INITIALIZED: 'powerfit_initialized',
+  MERCADO_PAGO_TOKEN: 'powerfit_mp_token',
 };
 
 // ========== GENERIC HELPERS ==========
@@ -157,14 +158,27 @@ export function deleteWorkout(id) {
   return workouts;
 }
 
-export function assignWorkoutToStudent(workoutId, studentId) {
+export function assignWorkoutToStudent(workoutId, studentId, dayOfWeek = 'Segunda') {
   const students = getStudents();
   const idx = students.findIndex(s => s.id === studentId);
   if (idx !== -1) {
+    if (!students[idx].workoutSchedule) students[idx].workoutSchedule = [];
+    students[idx].workoutSchedule.push({ workoutId, day: dayOfWeek, id: generateId() });
+    
+    // Legacy mapping support
     if (!students[idx].workoutIds) students[idx].workoutIds = [];
     if (!students[idx].workoutIds.includes(workoutId)) {
       students[idx].workoutIds.push(workoutId);
     }
+    setItem(KEYS.STUDENTS, students);
+  }
+}
+
+export function unassignWorkoutFromSchedule(studentId, scheduleId) {
+  const students = getStudents();
+  const idx = students.findIndex(s => s.id === studentId);
+  if (idx !== -1 && students[idx].workoutSchedule) {
+    students[idx].workoutSchedule = students[idx].workoutSchedule.filter(w => w.id !== scheduleId);
     setItem(KEYS.STUDENTS, students);
   }
 }
@@ -258,6 +272,15 @@ export function getTheme() {
 
 export function setTheme(theme) {
   setItem(KEYS.THEME, theme);
+}
+
+// ========== MERCADO PAGO ==========
+export function getMercadoPagoToken() {
+  return getItem(KEYS.MERCADO_PAGO_TOKEN) || '';
+}
+
+export function saveMercadoPagoToken(token) {
+  setItem(KEYS.MERCADO_PAGO_TOKEN, token);
 }
 
 // ========== IMC / METRICS CALCULATIONS ==========
