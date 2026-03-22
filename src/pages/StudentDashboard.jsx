@@ -122,8 +122,10 @@ export default function StudentDashboard() {
         <Dumbbell size={20} style={{ color: 'var(--primary)' }} /> Meus Treinos
       </h3>
       {workouts.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '30px', marginBottom: '24px', color: 'var(--text-muted)' }}>
-          Nenhum treino atribuído pelo personal
+        <div className="empty-state" style={{ marginBottom: '24px', padding: '40px 20px' }}>
+          <Dumbbell size={48} style={{ color: 'var(--text-muted)', opacity: 0.5, marginBottom: '16px' }} />
+          <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Nenhum treino atribuído</h4>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', maxWidth: '300px', margin: '0 auto' }}>Seu personal trainer ainda não enviou seu cronograma de exercícios. Aguarde as novidades!</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>

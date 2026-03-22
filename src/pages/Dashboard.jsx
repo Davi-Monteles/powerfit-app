@@ -7,7 +7,7 @@ import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, Calenda
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ students: 0, workouts: 0, evolution: 0 });
+  const [stats, setStats] = useState({ students: 0, workouts: 0, evolution: 0, premiumCount: 0 });
   const [todayEvents, setTodayEvents] = useState([]);
 
   useEffect(() => {
@@ -21,6 +21,7 @@ export default function Dashboard() {
       students: students.length,
       workouts: workouts.length,
       evolution: evolution.length,
+      premiumCount: students.filter(s => s.isPremium).length,
     });
     // Merge student names
     setTodayEvents(todaySchedule.map(e => ({
@@ -66,6 +67,14 @@ export default function Dashboard() {
         <div className="stat-card" onClick={() => navigate('/schedule')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon purple"><CalendarDays size={24} color="white" /></div>
           <div className="stat-info"><h4>{todayEvents.length}</h4><p>Hoje na Agenda</p></div>
+        </div>
+        <div className="stat-card" style={{ cursor: 'default' }}>
+          <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}><span style={{fontSize: '20px'}}>⭐</span></div>
+          <div className="stat-info">
+            <h4>{stats.premiumCount}</h4>
+            <p>Premium</p>
+            <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 'bold' }}>+R$ {(stats.premiumCount * 24.9).toFixed(2)}/mês</span>
+          </div>
         </div>
       </div>
 

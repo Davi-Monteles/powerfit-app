@@ -20,7 +20,7 @@ export default function Auth({ onLogin }) {
     try {
       const user = loginUser(loginForm.email, loginForm.password);
       onLogin(user);
-      navigate('/dashboard');
+      navigate(user.type === 'aluno' ? '/aluno' : '/dashboard');
     } catch (err) {
       setError(err.message);
     }
@@ -45,13 +45,7 @@ export default function Auth({ onLogin }) {
     setLoading(false);
   };
 
-  const loginDemoPersonal = () => {
-    setLoginForm({ email: 'marcio@powerfit.com', password: '123456' });
-  };
 
-  const loginDemoStudent = () => {
-    setLoginForm({ email: 'ana@powerfit.com', password: '123456' });
-  };
 
   return (
     <div className="auth-page">
@@ -94,12 +88,9 @@ export default function Auth({ onLogin }) {
             <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
-              <button type="button" className="btn btn-outline" style={{ width: '100%', fontSize: '0.8rem' }} onClick={loginDemoPersonal}>
-                Demo Personal
-              </button>
-              <button type="button" className="btn btn-outline" style={{ width: '100%', fontSize: '0.8rem' }} onClick={loginDemoStudent}>
-                Demo Aluno
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => alert('Um link de recuperação seria enviado para seu email neste app em produção.')}>
+                Esqueci minha senha
               </button>
             </div>
           </form>
@@ -136,11 +127,36 @@ export default function Auth({ onLogin }) {
                 </button>
               </div>
             </div>
+            <div className="form-group">
+              <label className="form-label">Tipo de Conta *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button 
+                  type="button" 
+                  className={`btn ${registerForm.type === 'aluno' ? 'btn-primary' : 'btn-outline'}`} 
+                  onClick={() => setRegisterForm({...registerForm, type: 'aluno'})}
+                >
+                  <User size={16} style={{ marginRight: '6px' }} /> Aluno
+                </button>
+                <button 
+                  type="button" 
+                  className={`btn ${registerForm.type === 'personal' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setRegisterForm({...registerForm, type: 'personal'})}
+                >
+                  <Zap size={16} style={{ marginRight: '6px' }} /> Personal
+                </button>
+              </div>
+            </div>
             <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar Conta'}
             </button>
           </form>
         )}
+      </div>
+
+      <div style={{ position: 'absolute', bottom: '24px', width: '100%', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+        <span style={{ cursor: 'pointer' }} onClick={() => alert('Termos de Uso não existem nesta demo.')}>Termos de Uso</span>
+        <span style={{ margin: '0 8px' }}>•</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => alert('Política de Privacidade não existe nesta demo.')}>Política de Privacidade</span>
       </div>
 
       <style>{`

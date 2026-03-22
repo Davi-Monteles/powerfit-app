@@ -36,7 +36,8 @@ export function getUsers() {
 
 export function registerUser(userData) {
   const users = getUsers();
-  const exists = users.find(u => u.email === userData.email);
+  const cleanEmail = userData.email?.trim().toLowerCase();
+  const exists = users.find(u => u.email?.trim().toLowerCase() === cleanEmail);
   if (exists) throw new Error('Email já cadastrado');
   
   const studentId = userData.type === 'aluno' ? generateId() : undefined;
@@ -70,7 +71,8 @@ export function registerUser(userData) {
 
 export function loginUser(email, password) {
   const users = getUsers();
-  const user = users.find(u => u.email === email && u.password === password);
+  const cleanEmail = email?.trim().toLowerCase();
+  const user = users.find(u => u.email?.trim().toLowerCase() === cleanEmail && u.password === password);
   if (!user) throw new Error('Email ou senha incorretos');
   setItem(KEYS.CURRENT_USER, user);
   return user;
@@ -388,74 +390,5 @@ export function importData(jsonString) {
 // ========== DEMO DATA SEEDING ==========
 export function seedDemoData() {
   if (getItem(KEYS.INITIALIZED)) return;
-  
-  const trainer = {
-    id: 'trainer1', name: 'Márcio Silva', email: 'marcio@powerfit.com',
-    password: '123456', phone: '11999999999', type: 'personal',
-    createdAt: new Date().toISOString(),
-  };
-  
-  // Demo student user for student dashboard
-  const studentUser = {
-    id: 'studentuser1', name: 'Ana Beatriz', email: 'ana@powerfit.com',
-    password: '123456', phone: '11988887777', type: 'aluno', studentId: 'student1',
-    createdAt: new Date().toISOString(),
-  };
-  
-  const students = [
-    { id: 'student1', name: 'Ana Beatriz', email: 'ana@powerfit.com', phone: '11988887777',
-      birthDate: '1995-05-15', gender: 'Feminino', height: 165, weight: 62,
-      objective: 'Emagrecimento', daysPerWeek: 4, shift: 'Manhã',
-      workoutIds: ['workout1'], createdAt: '2025-01-15T10:00:00Z' },
-    { id: 'student2', name: 'Carlos Eduardo', email: 'carlos@email.com', phone: '11977776666',
-      birthDate: '1990-08-20', gender: 'Masculino', height: 180, weight: 85,
-      objective: 'Hipertrofia', daysPerWeek: 5, shift: 'Noite',
-      workoutIds: ['workout2'], createdAt: '2025-02-01T10:00:00Z' },
-    { id: 'student3', name: 'Maria Fernanda', email: 'maria@email.com', phone: '11966665555',
-      birthDate: '1998-12-03', gender: 'Feminino', height: 158, weight: 55,
-      objective: 'Condicionamento', daysPerWeek: 3, shift: 'Tarde',
-      workoutIds: [], createdAt: '2025-03-01T10:00:00Z' },
-  ];
-  
-  const workouts = [
-    { id: 'workout1', name: 'Treino A - Superior', description: 'Foco em peito, ombro e tríceps',
-      category: 'Musculação', exercises: [
-        { name: 'Supino Reto', sets: 4, reps: 12, weight: 30, rest: 60, notes: 'Controlar descida' },
-        { name: 'Desenvolvimento Halteres', sets: 3, reps: 12, weight: 10, rest: 60, notes: '' },
-        { name: 'Crucifixo Máquina', sets: 3, reps: 15, weight: 20, rest: 45, notes: '' },
-        { name: 'Elevação Lateral', sets: 4, reps: 15, weight: 6, rest: 45, notes: 'Sem balançar' },
-        { name: 'Tríceps Pulley', sets: 3, reps: 15, weight: 25, rest: 45, notes: '' },
-      ], createdAt: '2025-01-20T10:00:00Z' },
-    { id: 'workout2', name: 'Treino B - Inferior', description: 'Foco em quadríceps, posterior e glúteo',
-      category: 'Musculação', exercises: [
-        { name: 'Agachamento Livre', sets: 4, reps: 10, weight: 60, rest: 90, notes: 'Descer até 90°' },
-        { name: 'Leg Press 45°', sets: 4, reps: 12, weight: 120, rest: 90, notes: '' },
-        { name: 'Cadeira Extensora', sets: 3, reps: 15, weight: 40, rest: 60, notes: '' },
-        { name: 'Mesa Flexora', sets: 3, reps: 12, weight: 35, rest: 60, notes: '' },
-        { name: 'Panturrilha Sentado', sets: 4, reps: 20, weight: 30, rest: 45, notes: '' },
-      ], createdAt: '2025-02-05T10:00:00Z' },
-  ];
-  
-  const evolution = [
-    { id: 'evo1', studentId: 'student1', date: '2025-01-15', weight: 65, bodyFat: 28, chest: 88, waist: 72, hip: 98, arm: 27, thigh: 56 },
-    { id: 'evo2', studentId: 'student1', date: '2025-02-15', weight: 63.5, bodyFat: 26.5, chest: 87, waist: 70, hip: 97, arm: 27.5, thigh: 55 },
-    { id: 'evo3', studentId: 'student1', date: '2025-03-15', weight: 62, bodyFat: 25, chest: 86, waist: 68, hip: 96, arm: 28, thigh: 54 },
-    { id: 'evo4', studentId: 'student2', date: '2025-02-01', weight: 82, bodyFat: 18, chest: 100, waist: 84, hip: 98, arm: 35, thigh: 60 },
-    { id: 'evo5', studentId: 'student2', date: '2025-03-01', weight: 84, bodyFat: 17, chest: 102, waist: 83, hip: 99, arm: 36, thigh: 61 },
-    { id: 'evo6', studentId: 'student2', date: '2025-03-21', weight: 85, bodyFat: 16.5, chest: 103, waist: 83, hip: 99, arm: 37, thigh: 62 },
-  ];
-  
-  const schedule = [
-    { id: 'sch1', studentId: 'student1', date: '2025-03-21', time: '08:00', title: 'Treino A - Ana', type: 'treino', notes: '' },
-    { id: 'sch2', studentId: 'student2', date: '2025-03-21', time: '19:00', title: 'Treino B - Carlos', type: 'treino', notes: '' },
-    { id: 'sch3', studentId: 'student1', date: '2025-03-22', time: '08:00', title: 'Avaliação - Ana', type: 'avaliacao', notes: 'Reavaliar medidas' },
-    { id: 'sch4', studentId: 'student3', date: '2025-03-24', time: '14:00', title: 'Treino - Maria', type: 'treino', notes: '' },
-  ];
-  
-  setItem(KEYS.USERS, [trainer, studentUser]);
-  setItem(KEYS.STUDENTS, students);
-  setItem(KEYS.WORKOUTS, workouts);
-  setItem(KEYS.EVOLUTION, evolution);
-  setItem(KEYS.SCHEDULE, schedule);
   setItem(KEYS.INITIALIZED, true);
 }

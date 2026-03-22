@@ -54,6 +54,11 @@ export default function Students() {
     addToast(`Treino atribuído para ${assignDay}!`, 'success');
   };
 
+  const handleWhatsAppChat = (phone) => {
+    if (!phone) return addToast('Aluno sem telefone cadastrado', 'error');
+    window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
+  };
+
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
@@ -81,7 +86,10 @@ export default function Students() {
               <div className="student-card-header">
                 <div className="student-avatar">{student.name.charAt(0).toUpperCase()}</div>
                 <div>
-                  <h4 style={{ fontSize: '1rem' }}>{student.name}</h4>
+                  <h4 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {student.name}
+                    {student.isPremium && <span style={{ fontSize: '0.7rem', background: 'var(--primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '2px' }}>⭐ PRO</span>}
+                  </h4>
                   <span className="badge badge-primary">{student.objective || 'Sem objetivo'}</span>
                 </div>
               </div>
@@ -95,8 +103,10 @@ export default function Students() {
               <div className="student-actions">
                 <button className="btn btn-secondary btn-sm" onClick={() => openAssign(student)}><Dumbbell size={14} /> Atribuir Treino</button>
                 <button className="btn btn-outline btn-sm" onClick={() => navigate(`/history/${student.id}`)}><History size={14} /> Histórico</button>
-                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)}><Edit2 size={16} /></button>
-                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id)} style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                <div style={{ flex: 1 }} />
+                <button className="btn btn-ghost btn-icon" onClick={() => handleWhatsAppChat(student.phone)} title="Falar no WhatsApp" style={{ color: '#25D366' }}><Phone size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)} title="Editar"><Edit2 size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id)} title="Excluir" style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
               </div>
             </div>
           ))}

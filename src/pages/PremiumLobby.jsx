@@ -1,37 +1,31 @@
 import { useState } from 'react';
-import { useAuth } from '../App';
+import { useAuth, useToast } from '../App';
 import { getStudents, saveStudent, getMercadoPagoToken } from '../lib/storage';
 import { Star, Zap, Activity, Clock } from 'lucide-react';
 
 export default function PremiumLobby({ onUpgrade }) {
   const { user } = useAuth();
+  const addToast = useToast();
   const [loading, setLoading] = useState(false);
-
-  const fallbackUpgrade = () => {
-    const currentStudent = getStudents().find(s => s.id === user.studentId);
-    if (currentStudent) {
-      saveStudent({ ...currentStudent, isPremium: true });
-      if (onUpgrade) onUpgrade();
-    }
-    setLoading(false);
-  };
 
   const handleSubscribe = async () => {
     setLoading(true);
     const token = getMercadoPagoToken();
     try {
-      if (!token) throw new Error('Mock');
+      if (!token) throw new Error('Pagamento indisponível: O Personal Trainer ainda não configurou o Token do Mercado Pago nas Configurações.');
+      
       const res = await fetch('/api/mercadopago', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token, title: 'PowerFit Premium', price: 24.90, email: user?.email })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro');
+      if (!res.ok) throw new Error(data.message || 'Erro ao comunicar com Mercado Pago');
+      
       window.location.href = data.init_point;
-    } catch {
-      // Mock upgrade if MP is unconfigured
-      setTimeout(fallbackUpgrade, 1500);
+    } catch (err) {
+      addToast(err.message, 'error');
+      setLoading(false);
     }
   };
 
