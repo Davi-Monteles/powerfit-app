@@ -4,88 +4,111 @@ import { OrbitControls, Text } from '@react-three/drei';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { getStudentById, saveStudent } from '../lib/storage';
-import { Save, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Save, ArrowLeft, RefreshCw, Zap } from 'lucide-react';
 import PremiumLobby from './PremiumLobby';
 
-// Composites of a simple 3D Human
-function BodyPart({ position, args, color, name, isSelected, onClick, type = 'box' }) {
+// AI Feedback Helper
+function getAIFeedback(parts, goal, gender) {
+  if (parts.length === 0) return "👉 Clique nas áreas do corpo no qual você deseja colocar mais ênfase inicial em seus treinos.";
+  
+  const hasFront = parts.includes("Peito") || parts.includes("Abdômen");
+  const hasBack = parts.includes("Costas");
+  const hasLegs = parts.includes("Pernas");
+
+  if (hasFront && !hasBack) {
+    return "💡 Dica da IA: Você selecionou Peito/Abdômen mas esqueceu das Costas. Lembre-se que negligenciar a cadeia posterior gera ombros projetados e má postura.";
+  }
+  if (!hasLegs) {
+    return "💡 Dica da IA: Não pule o treino de pernas! Treinar membros inferiores aumenta a produção natural de testosterona e acelera a queima basal.";
+  }
+  if (parts.length > 4) {
+    return `✅ Seleção completa. Seu instrutor distribuirá os treinos para focar nestas áreas visando seu objetivo de ${goal}.`;
+  }
+  
+  return `💪 Focando em ${parts.join(', ')} para o seu objetivo de ${goal}. Excelente escolha para a anatomia ${gender}!`;
+}
+
+// Composites of a realistic 3D Human
+function BodyPart({ position, args, rotation, name, isSelected, onClick, type = 'capsule' }) {
   const meshRef = useRef();
   
-  // Highlight with neon blue/orange if selected, dark gray otherwise
   const baseColor = isSelected ? '#3B82F6' : '#2A3040';
   const hoverColor = isSelected ? '#60A5FA' : '#3F465C';
-
   const [hovered, setHover] = useState(false);
 
   return (
     <mesh
       ref={meshRef}
       position={position}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (onClick) onClick(name);
-      }}
+      rotation={rotation || [0, 0, 0]}
+      onClick={(e) => { e.stopPropagation(); if (onClick) onClick(name); }}
       onPointerOver={(e) => { e.stopPropagation(); setHover(true); }}
       onPointerOut={(e) => { e.stopPropagation(); setHover(false); }}
-      castShadow
-      receiveShadow
+      castShadow receiveShadow
     >
-      {type === 'box' && <boxGeometry args={args} />}
-      {type === 'cylinder' && <cylinderGeometry args={args} />}
+      {type === 'capsule' && <capsuleGeometry args={args} />}
       {type === 'sphere' && <sphereGeometry args={args} />}
+      {type === 'box' && <boxGeometry args={args} />}
       <meshStandardMaterial 
         color={hovered ? hoverColor : baseColor} 
-        roughness={0.4} 
-        metalness={0.2}
+        roughness={0.5} 
+        metalness={0.1}
         emissive={isSelected ? '#3B82F6' : '#000000'}
-        emissiveIntensity={isSelected ? 0.3 : 0}
+        emissiveIntensity={isSelected ? 0.4 : 0}
       />
     </mesh>
   );
 }
 
-function Humanoid({ selectedParts, onPartClick }) {
+function Humanoid({ selectedParts, onPartClick, gender }) {
   const isSelected = (part) => selectedParts.includes(part);
+  const isMale = gender === 'Masculino';
+
+  // Proportions based on gender
+  const sX = isMale ? 1.4 : 1.1; // Shoulder width
+  const aT = isMale ? 0.35 : 0.28; // Arm thickness
+  const hX = isMale ? 0.6 : 0.8; // Hip width
+  const lT = isMale ? 0.4 : 0.45; // Leg thickness
 
   return (
     <group position={[0, -2, 0]}>
-      {/* Head - Not clickable */}
-      <mesh position={[0, 4.5, 0]} castShadow>
-        <sphereGeometry args={[0.6, 32, 32]} />
+      {/* Head */}
+      <mesh position={[0, 4.8, 0]} castShadow>
+        <sphereGeometry args={[0.55, 32, 32]} />
         <meshStandardMaterial color="#3F465C" />
       </mesh>
       {/* Neck */}
-      <mesh position={[0, 3.8, 0]} castShadow>
-        <cylinderGeometry args={[0.2, 0.2, 0.5]} />
+      <mesh position={[0, 4.2, 0]} castShadow>
+        <cylinderGeometry args={[0.2, 0.25, 0.6]} />
         <meshStandardMaterial color="#3F465C" />
       </mesh>
 
-      {/* Torso Top (Chest / Peito) */}
-      <BodyPart name="Peito" position={[0, 3.1, 0.2]} args={[1.8, 1.2, 0.6]} isSelected={isSelected('Peito')} onClick={onPartClick} />
+      {/* Chest (Peito) */}
+      <BodyPart name="Peito" type="capsule" position={[0, 3.2, 0]} rotation={[0, 0, Math.PI/2]} args={[isMale ? 0.7 : 0.6, isMale ? 1.0 : 0.7, 4, 16]} isSelected={isSelected('Peito')} onClick={onPartClick} />
       
-      {/* Torso Bottom (Abs / Abdômen) */}
-      <BodyPart name="Abdômen" position={[0, 1.7, 0.2]} args={[1.5, 1.4, 0.5]} isSelected={isSelected('Abdômen')} onClick={onPartClick} />
+      {/* Abs (Abdômen) */}
+      <BodyPart name="Abdômen" type="box" position={[0, 2.0, 0.1]} args={[isMale ? 1.2 : 0.9, 1.4, 0.6]} isSelected={isSelected('Abdômen')} onClick={onPartClick} />
       
-      {/* Back (Costas) */}
-      <BodyPart name="Costas" position={[0, 2.4, -0.2]} args={[1.8, 2.6, 0.5]} isSelected={isSelected('Costas')} onClick={onPartClick} />
+      {/* Back (Costas) - Larger box covering the back */}
+      <BodyPart name="Costas" type="box" position={[0, 2.5, -0.3]} args={[isMale ? 1.6 : 1.2, 2.2, 0.4]} isSelected={isSelected('Costas')} onClick={onPartClick} />
 
       {/* Shoulders (Ombros) */}
-      <BodyPart name="Ombros" position={[-1.2, 3.4, 0]} args={[0.5, 32, 32]} type="sphere" isSelected={isSelected('Ombros')} onClick={onPartClick} />
-      <BodyPart name="Ombros" position={[1.2, 3.4, 0]} args={[0.5, 32, 32]} type="sphere" isSelected={isSelected('Ombros')} onClick={onPartClick} />
+      <BodyPart name="Ombros" type="sphere" position={[-sX, 3.5, 0]} args={[isMale ? 0.45 : 0.35, 32, 32]} isSelected={isSelected('Ombros')} onClick={onPartClick} />
+      <BodyPart name="Ombros" type="sphere" position={[sX, 3.5, 0]} args={[isMale ? 0.45 : 0.35, 32, 32]} isSelected={isSelected('Ombros')} onClick={onPartClick} />
 
       {/* Arms (Braços) */}
-      <BodyPart name="Braços" position={[-1.4, 2.1, 0]} args={[0.35, 0.35, 2.2]} type="cylinder" isSelected={isSelected('Braços')} onClick={onPartClick} />
-      <BodyPart name="Braços" position={[1.4, 2.1, 0]} args={[0.35, 0.35, 2.2]} type="cylinder" isSelected={isSelected('Braços')} onClick={onPartClick} />
+      <BodyPart name="Braços" type="capsule" position={[-sX - 0.2, 2.2, 0]} args={[aT, 1.8, 4, 16]} isSelected={isSelected('Braços')} onClick={onPartClick} />
+      <BodyPart name="Braços" type="capsule" position={[sX + 0.2, 2.2, 0]} args={[aT, 1.8, 4, 16]} isSelected={isSelected('Braços')} onClick={onPartClick} />
 
-      {/* Pelvis */}
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <boxGeometry args={[1.6, 0.6, 0.8]} />
+      {/* Pelvis / Glutes */}
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <capsuleGeometry args={[hX, 0.8, 4, 16]} rotation={[0, 0, Math.PI/2]} />
         <meshStandardMaterial color="#2A3040" />
       </mesh>
 
       {/* Legs (Pernas) */}
-      <BodyPart name="Pernas" position={[-0.45, -1, 0]} args={[0.4, 0.4, 2.8]} type="cylinder" isSelected={isSelected('Pernas')} onClick={onPartClick} />
-      <BodyPart name="Pernas" position={[0.45, -1, 0]} args={[0.4, 0.4, 2.8]} type="cylinder" isSelected={isSelected('Pernas')} onClick={onPartClick} />
+      <BodyPart name="Pernas" type="capsule" position={[-0.5, -0.8, 0]} args={[lT, 2.4, 4, 16]} isSelected={isSelected('Pernas')} onClick={onPartClick} />
+      <BodyPart name="Pernas" type="capsule" position={[0.5, -0.8, 0]} args={[lT, 2.4, 4, 16]} isSelected={isSelected('Pernas')} onClick={onPartClick} />
     </group>
   );
 }
@@ -98,9 +121,11 @@ export default function BodyTargets() {
   const student = user?.studentId ? getStudentById(user.studentId) : null;
   const initialTargets = student?.targetMuscles || [];
   const initialGoal = student?.objective || 'Hipertrofia';
+  const initialGender = student?.gender === 'Feminino' ? 'Feminino' : 'Masculino';
 
   const [selectedParts, setSelectedParts] = useState(initialTargets);
   const [goal, setGoal] = useState(initialGoal);
+  const [gender, setGender] = useState(initialGender);
   const [isSaving, setIsSaving] = useState(false);
 
   const togglePart = (partName) => {
@@ -116,7 +141,8 @@ export default function BodyTargets() {
         saveStudent({
           ...student,
           targetMuscles: selectedParts,
-          objective: goal
+          objective: goal,
+          gender: gender
         });
       }
       navigate('/aluno');
@@ -170,7 +196,7 @@ export default function BodyTargets() {
             <pointLight position={[10, 10, 10]} intensity={1.2} castShadow />
             <pointLight position={[-10, 10, -10]} intensity={0.5} color="#3B82F6" />
             
-            <Humanoid selectedParts={selectedParts} onPartClick={togglePart} />
+            <Humanoid selectedParts={selectedParts} onPartClick={togglePart} gender={gender} />
             
             <OrbitControls 
               enablePan={false}
@@ -191,13 +217,39 @@ export default function BodyTargets() {
           <div className="form-group" style={{ marginBottom: '24px' }}>
             <label className="form-label" style={{ fontWeight: '600' }}>Seu Principal Objetivo</label>
             <select className="form-input" value={goal} onChange={e => setGoal(e.target.value)}>
-              <option value="Emagrecimento">🏃 Emagrecimento Acetinado</option>
+              <option value="Emagrecimento">🏃 Emagrecimento Acelerado</option>
               <option value="Hipertrofia">💪 Hipertrofia (Ganho de Massa)</option>
               <option value="Condicionamento">🚴 Condicionamento Físico</option>
               <option value="Reabilitação">🏥 Reabilitação Fisioterápica</option>
             </select>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-              A IA do PowerFit usará essa informação para calcular dicas específicas nos seus dias de descanso.
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '24px' }}>
+            <label className="form-label" style={{ fontWeight: '600' }}>Anatomia do Modelo</label>
+            <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <button 
+                className={`btn ${gender === 'Masculino' ? 'btn-primary' : 'btn-ghost'}`} 
+                style={{ flex: 1, padding: '8px' }} 
+                onClick={() => setGender('Masculino')}
+              >
+                Masculino
+              </button>
+              <button 
+                className={`btn ${gender === 'Feminino' ? 'btn-primary' : 'btn-ghost'}`} 
+                style={{ flex: 1, padding: '8px' }} 
+                onClick={() => setGender('Feminino')}
+              >
+                Feminino
+              </button>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '16px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', marginBottom: '24px' }}>
+            <h4 style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#60A5FA', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Zap size={16} /> Análise da IA PowerFit
+            </h4>
+            <p style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
+              {getAIFeedback(selectedParts, goal, gender)}
             </p>
           </div>
 
