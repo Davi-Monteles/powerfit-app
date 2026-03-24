@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Dumbbell, Users, TrendingUp, MessageCircle, LayoutDashboard, Zap, ArrowRight, CheckCircle } from 'lucide-react';
+import { Dumbbell, Users, TrendingUp, MessageCircle, LayoutDashboard, Zap, ArrowRight } from 'lucide-react';
 
 const features = [
   { icon: Dumbbell, title: 'Criação de Treinos', description: 'Personal trainers podem criar treinos detalhados com exercícios, séries, repetições e observações personalizadas.', gradient: 'primary' },
@@ -24,13 +24,8 @@ export default function Landing() {
           <h1>Transforme a Gestão dos <span className="text-gradient">Seus Treinos</span></h1>
           <p>Plataforma completa para personal trainers gerenciarem treinos e alunos acompanharem sua evolução com gráficos inteligentes.</p>
           <div className="hero-actions">
-            <Link to="/auth"><button className="btn btn-primary btn-lg">Começar Agora <ArrowRight size={20} /></button></Link>
+            <Link to="/auth"><button className="btn btn-primary btn-lg">Criar Conta <ArrowRight size={20} /></button></Link>
             <Link to="/auth"><button className="btn btn-outline btn-lg">Fazer Login</button></Link>
-          </div>
-          <div className="hero-stats">
-            <div className="hero-stat"><CheckCircle size={16} /> <span>100% Gratuito</span></div>
-            <div className="hero-stat"><CheckCircle size={16} /> <span>Sem Cartão</span></div>
-            <div className="hero-stat"><CheckCircle size={16} /> <span>Uso Imediato</span></div>
           </div>
         </div>
       </section>
@@ -61,7 +56,7 @@ export default function Landing() {
         <div className="cta-card">
           <h2>Pronto para Transformar Seus Treinos?</h2>
           <p>Junte-se a centenas de personal trainers que já estão usando o PowerFit</p>
-          <Link to="/auth"><button className="btn btn-primary btn-lg">Começar Gratuitamente <ArrowRight size={20} /></button></Link>
+          <Link to="/auth"><button className="btn btn-primary btn-lg">Criar Conta Grátis <ArrowRight size={20} /></button></Link>
         </div>
       </section>
 
@@ -155,25 +150,7 @@ export default function Landing() {
           gap: 16px;
           justify-content: center;
           flex-wrap: wrap;
-          margin-bottom: 32px;
         }
-        
-        .hero-stats {
-          display: flex;
-          gap: 24px;
-          justify-content: center;
-          flex-wrap: wrap;
-        }
-        
-        .hero-stat {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: var(--text-muted);
-          font-size: 0.85rem;
-        }
-        
-        .hero-stat svg { color: var(--success); }
         
         .features-section {
           padding: 80px 20px;
