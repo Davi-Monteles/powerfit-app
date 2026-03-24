@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Dumbbell, Users, TrendingUp, MessageCircle, LayoutDashboard, Zap, ArrowRight } from 'lucide-react';
+import { useAuth } from '../App';
 
 const features = [
   { icon: Dumbbell, title: 'Criação de Treinos', description: 'Personal trainers podem criar treinos detalhados com exercícios, séries, repetições e observações personalizadas.', gradient: 'primary' },
@@ -11,6 +12,14 @@ const features = [
 ];
 
 export default function Landing() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleCreateOther = () => {
+    logout();
+    navigate('/auth');
+  };
+
   return (
     <div className="landing">
       {/* Hero */}
@@ -24,8 +33,21 @@ export default function Landing() {
           <h1>Transforme a Gestão dos <span className="text-gradient">Seus Treinos</span></h1>
           <p>Plataforma completa para personal trainers gerenciarem treinos e alunos acompanharem sua evolução com gráficos inteligentes.</p>
           <div className="hero-actions">
-            <Link to="/auth"><button className="btn btn-primary btn-lg">Criar Conta <ArrowRight size={20} /></button></Link>
-            <Link to="/auth"><button className="btn btn-outline btn-lg">Fazer Login</button></Link>
+            {user ? (
+              <>
+                <Link to={user.type === 'aluno' ? '/aluno' : '/dashboard'}>
+                  <button className="btn btn-primary btn-lg">Acessar Meu Painel <ArrowRight size={20} /></button>
+                </Link>
+                <button className="btn btn-outline btn-lg" onClick={handleCreateOther}>
+                  Criar Outra Conta
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/auth"><button className="btn btn-primary btn-lg">Criar Conta Grátis <ArrowRight size={20} /></button></Link>
+                <Link to="/auth"><button className="btn btn-outline btn-lg">Fazer Login</button></Link>
+              </>
+            )}
           </div>
         </div>
       </section>
