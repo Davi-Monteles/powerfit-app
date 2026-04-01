@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth, useTheme } from '../App';
-import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target } from 'lucide-react';
+import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target, Crown } from 'lucide-react';
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
@@ -8,6 +8,8 @@ export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
 
   const isStudent = user?.type === 'aluno';
+  const isMaster = user?.type === 'master';
+  const isPersonal = user?.type === 'personal';
 
   const personalNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,6 +18,12 @@ export default function Sidebar({ open, onClose }) {
     { path: '/evolution', label: 'Evolução', icon: TrendingUp },
     { path: '/schedule', label: 'Agenda', icon: CalendarDays },
     { path: '/photos', label: 'Fotos', icon: Camera },
+    { path: '/meu-plano', label: 'Meu Plano', icon: Crown },
+    { path: '/settings', label: 'Configurações', icon: Settings },
+  ];
+
+  const masterNavItems = [
+    { path: '/master', label: 'Painel Master', icon: TrendingUp },
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
@@ -25,7 +33,7 @@ export default function Sidebar({ open, onClose }) {
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
-  const navItems = isStudent ? studentNavItems : personalNavItems;
+  const navItems = isMaster ? masterNavItems : isStudent ? studentNavItems : personalNavItems;
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -60,7 +68,7 @@ export default function Sidebar({ open, onClose }) {
             <div className="sidebar-avatar">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
             <div className="sidebar-user-info">
               <p className="sidebar-user-name">{user?.name || 'Usuário'}</p>
-              <p className="sidebar-user-role">{isStudent ? 'Aluno' : 'Personal Trainer'}</p>
+              <p className="sidebar-user-role">{isMaster ? 'Administrador Master' : isStudent ? 'Aluno' : 'Personal Trainer'}</p>
             </div>
           </div>
           <button className="btn btn-ghost sidebar-logout" onClick={handleLogout}>

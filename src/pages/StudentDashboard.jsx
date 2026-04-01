@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../App';
-import { getStudentById, getWorkouts, getEvolutionByStudent, calculateIMC, calculateTMB, calculateCalories } from '../lib/storage';
-import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar } from 'lucide-react';
+import { getStudentById, getWorkouts, getEvolutionByStudent, calculateIMC, calculateTMB, calculateCalories, getTrainerById } from '../lib/storage';
+import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users } from 'lucide-react';
+
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import PremiumLobby from './PremiumLobby';
 import AIAssistantNotice from '../components/AIAssistantNotice';
+import AIChat from '../components/AIChat';
+
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
@@ -15,14 +18,25 @@ const metrics = [
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [student, setStudent] = useState(null);
+  const [personal, setPersonal] = useState(null);
   const [workouts, setWorkouts] = useState([]);
   const [evolution, setEvolution] = useState([]);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+
 
   useEffect(() => {
-    if (user?.studentId) {
-      const s = getStudentById(user.studentId);
+    if (user?.studentId || user?.type === 'aluno') {
+      const sid = user.studentId || user.id;
+      const s = getStudentById(sid);
       setStudent(s);
       if (s) {
+        // Fetch trainer info
+        if (s.personalId) {
+          getTrainerById(s.personalId).then(myTrainer => {
+            if (myTrainer) setPersonal(myTrainer);
+          }).catch(() => {});
+        }
+
         const all = getWorkouts();
         // legacy support
         const legacyWorkouts = all.filter(w => s.workoutIds?.includes(w.id)).map(w => ({ ...w, day: 'Geral' }));
@@ -42,10 +56,10 @@ export default function StudentDashboard() {
     if (student && !student.isPremium) {
       const params = new URLSearchParams(window.location.search);
       if (params.get('payment') === 'success') {
-        import('../lib/storage').then(({ saveStudent, getStudentById }) => {
+        import('../lib/storage').then(({ saveStudent, getStudentById: getById }) => {
           saveStudent({ ...student, isPremium: true });
           window.history.replaceState({}, document.title, window.location.pathname);
-          setStudent(getStudentById(student.id));
+          setStudent(getById(student.id));
         });
       }
     }
@@ -76,15 +90,26 @@ export default function StudentDashboard() {
 
   return (
     <div className="page-container animate-fade-in">
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: '8px' }}>
         <h2><LayoutDashboard size={24} style={{ color: 'var(--primary)' }} /> Olá, {student.name.split(' ')[0]}! 👋</h2>
       </div>
+      {personal && (
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Users size={14} /> Seu Personal: <strong style={{ color: 'var(--primary)' }}>{personal.name}</strong>
+        </p>
+      )}
+
 
       {!student.isPremium ? (
         <PremiumLobby onUpgrade={() => setStudent(prev => ({...prev, isPremium: true}))} />
       ) : (
         <>
-          <AIAssistantNotice student={student} workouts={workouts} evolution={evolution} />
+          <div onClick={() => setIsAIChatOpen(true)} style={{ cursor: 'pointer' }}>
+            <AIAssistantNotice student={student} workouts={workouts} evolution={evolution} />
+          </div>
+          
+          <AIChat student={student} isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+
           
           {/* Metrics */}
       <div className="stats-grid" style={{ marginBottom: '24px' }}>
@@ -101,7 +126,7 @@ export default function StudentDashboard() {
           <div className="stat-info"><h4>{tmb || '—'}<small style={{ fontSize: '0.5em' }}>kcal</small></h4><p>TMB</p></div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon purple"><Heart size={22} color="white" /></div>
+          <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #EC4899, #DB2777)' }}><Heart size={22} color="white" /></div>
           <div className="stat-info"><h4>{calories ? calories.maintenance : '—'}<small style={{ fontSize: '0.5em' }}>kcal</small></h4><p>Cal. Diária</p></div>
         </div>
       </div>

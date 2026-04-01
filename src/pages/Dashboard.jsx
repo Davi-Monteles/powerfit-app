@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { getStudents, getWorkouts, getEvolution, getSchedule, getScheduleByDate } from '../lib/storage';
-import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings } from 'lucide-react';
+import { getStudents, getWorkouts, getEvolution, getSchedule, getScheduleByDate, getUserPlan, getStudentUsage, isVipUser } from '../lib/storage';
+import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({ students: 0, workouts: 0, evolution: 0, premiumCount: 0 });
   const [todayEvents, setTodayEvents] = useState([]);
+  const plan = getUserPlan();
+  const usage = getStudentUsage();
+  const isVip = isVipUser(user?.email);
 
   useEffect(() => {
     const students = getStudents();
@@ -54,26 +57,24 @@ export default function Dashboard() {
       <div className="stats-grid">
         <div className="stat-card" onClick={() => navigate('/students')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon orange"><Users size={24} color="white" /></div>
-          <div className="stat-info"><h4>{stats.students}</h4><p>Alunos</p></div>
+          <div className="stat-info">
+            <h4>{stats.students} / {usage.limit === Infinity ? '∞' : usage.limit}</h4>
+            <p>Alunos Adicionados</p>
+          </div>
         </div>
         <div className="stat-card" onClick={() => navigate('/workouts')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon blue"><Dumbbell size={24} color="white" /></div>
           <div className="stat-info"><h4>{stats.workouts}</h4><p>Treinos</p></div>
         </div>
-        <div className="stat-card" onClick={() => navigate('/evolution')} style={{ cursor: 'pointer' }}>
-          <div className="stat-icon green"><TrendingUp size={24} color="white" /></div>
-          <div className="stat-info"><h4>{stats.evolution}</h4><p>Avaliações</p></div>
-        </div>
         <div className="stat-card" onClick={() => navigate('/schedule')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon purple"><CalendarDays size={24} color="white" /></div>
           <div className="stat-info"><h4>{todayEvents.length}</h4><p>Hoje na Agenda</p></div>
         </div>
-        <div className="stat-card" style={{ cursor: 'default' }}>
-          <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}><span style={{fontSize: '20px'}}>⭐</span></div>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/meu-plano')}>
+          <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}><Crown size={24} color="white" /></div>
           <div className="stat-info">
-            <h4>{stats.premiumCount}</h4>
-            <p>Premium</p>
-            <span style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 'bold' }}>+R$ {(stats.premiumCount * 24.9).toFixed(2)}/mês</span>
+            <h4>{isVip ? 'VIP' : plan?.name || 'Sem plano'}</h4>
+            <p>{isVip ? 'Acesso Total' : plan ? 'Plano Ativo' : 'Escolher Plano'}</p>
           </div>
         </div>
       </div>

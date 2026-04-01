@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { registerUser, loginUser } from '../lib/storage';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { registerUser, loginUser, isVipUser, getUserPlan } from '../lib/storage';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth({ onLogin }) {
@@ -9,18 +9,42 @@ export default function Auth({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', type: 'aluno' });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
+    if (type === 'personal' || type === 'aluno') {
+      setRegisterForm(prev => ({ ...prev, type }));
+      setTab('register');
+    }
+  }, [location]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const user = loginUser(loginForm.email, loginForm.password);
+      const user = await loginUser(loginForm.email, loginForm.password);
       onLogin(user);
-      navigate(user.type === 'aluno' ? '/aluno' : '/dashboard');
+      
+      const plan = getUserPlan();
+      const isVip = isVipUser(user.email);
+
+      if (user.type === 'aluno') {
+        const studentPlan = getUserPlan(user.id);
+        // Se aluno VIP ou Pro, vai direto. Se free e sem personal, talvez queira ver planos.
+        navigate('/aluno');
+      } else if (user.type === 'master') {
+        navigate('/master');
+      } else if (user.type === 'personal') {
+        navigate(plan || isVip ? '/dashboard' : '/planos');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -34,11 +58,28 @@ export default function Auth({ onLogin }) {
       setError('Preencha todos os campos obrigatórios');
       return;
     }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(registerForm.email)) {
+      setError('Por favor, insira um email válido (ex: seu.nome@gmail.com)');
+      return;
+    }
+
     setLoading(true);
     try {
-      const user = registerUser(registerForm);
+      const user = await registerUser(registerForm);
       onLogin(user);
-      navigate(user.type === 'aluno' ? '/aluno' : '/dashboard');
+      
+      const isVip = isVipUser(user.email);
+      
+      if (user.type === 'aluno') {
+        // Alunos que entram sozinhos devem ver os planos primeiro para se tornarem "Pro"
+        navigate('/planos');
+      } else if (user.type === 'personal') {
+        navigate(isVip ? '/dashboard' : '/planos');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message);
     }

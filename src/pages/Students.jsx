@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent } from '../lib/storage';
-import { useToast } from '../App';
+import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent } from '../lib/storage';
+import { useToast, useAuth } from '../App';
 import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History } from 'lucide-react';
 
 export default function Students() {
@@ -14,6 +14,7 @@ export default function Students() {
   const [assigningStudent, setAssigningStudent] = useState(null);
   const [assignDay, setAssignDay] = useState('Segunda');
   const addToast = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const emptyForm = { name: '', email: '', phone: '', birthDate: '', gender: 'Masculino', height: '', weight: '', objective: 'Hipertrofia', daysPerWeek: 3, shift: 'Manhã', address: '', medicalNotes: '' };
@@ -26,16 +27,28 @@ export default function Students() {
 
   const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase()));
 
-  const openNew = () => { setForm(emptyForm); setEditingStudent(null); setShowModal(true); };
+  const openNew = () => { 
+    if (!canAddStudent()) {
+      addToast('Limite de alunos do seu plano atingido. Faça upgrade em "Meu Plano".', 'error');
+      return;
+    }
+    setForm(emptyForm); 
+    setEditingStudent(null); 
+    setShowModal(true); 
+  };
   const openEdit = (student) => { setForm(student); setEditingStudent(student); setShowModal(true); };
   
   const handleSave = (e) => {
     e.preventDefault();
     if (!form.name) { addToast('Nome é obrigatório', 'error'); return; }
-    saveStudent(form);
-    setStudents(getStudents());
-    setShowModal(false);
-    addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
+    try {
+      saveStudent(form);
+      setStudents(getStudents());
+      setShowModal(false);
+      addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
   };
 
   const handleDelete = (id) => {
@@ -130,8 +143,12 @@ export default function Students() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label className="form-label">Email</label>
-                    <input type="email" className="form-input" placeholder="email@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    <input type="email" className="form-input" placeholder="alunovip@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      💡 Se o aluno já tiver conta, o sistema irá vincular automaticamente.
+                    </p>
                   </div>
+
                   <div className="form-group">
                     <label className="form-label">Telefone</label>
                     <input className="form-input" placeholder="(00) 00000-0000" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />

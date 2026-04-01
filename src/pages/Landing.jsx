@@ -30,8 +30,11 @@ export default function Landing() {
             <div className="hero-logo-icon"><Zap size={28} /></div>
             <span className="hero-logo-text">PowerFit</span>
           </div>
-          <h1>Transforme a Gestão dos <span className="text-gradient">Seus Treinos</span></h1>
-          <p>Plataforma completa para personal trainers gerenciarem treinos e alunos acompanharem sua evolução com gráficos inteligentes.</p>
+          <h1>Resultados Reais, <span className="text-gradient">Gestão Profissional</span></h1>
+          <p>
+            Seja você um Personal Trainer buscando escala ou um aluno buscando autonomia com 
+            <strong> IA Personal</strong> e <strong>Anatomia 3D</strong>. O PowerFit é sua evolução.
+          </p>
           <div className="hero-actions">
             {user ? (
               <>
@@ -44,8 +47,20 @@ export default function Landing() {
               </>
             ) : (
               <>
-                <Link to="/auth"><button className="btn btn-primary btn-lg">Criar Conta Grátis <ArrowRight size={20} /></button></Link>
-                <Link to="/auth"><button className="btn btn-outline btn-lg">Fazer Login</button></Link>
+                <div className="hero-button-group">
+                  <div className="hero-button-wrapper">
+                    <Link to="/auth?type=personal">
+                      <button className="btn btn-primary btn-lg">Sou Personal Trainer <ArrowRight size={20} /></button>
+                    </Link>
+                    <span className="button-hint">Gerencie seus alunos</span>
+                  </div>
+                  <div className="hero-button-wrapper">
+                    <Link to="/auth?type=aluno">
+                      <button className="btn btn-outline btn-lg">Quero Treinar Sozinho</button>
+                    </Link>
+                    <span className="button-hint">IA + Atlas 3D + Treinos</span>
+                  </div>
+                </div>
               </>
             )}
           </div>
