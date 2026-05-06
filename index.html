@@ -6,20 +6,29 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#FF6B35" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PowerFit Master</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Unregister old Service Workers to prevent cached files causing black screen
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          registrations.forEach(function(reg) { reg.unregister(); });
-        });
+      // Version-based cache buster: clears corrupted state on version bump
+      var APP_VERSION = 'v2.1';
+      if (localStorage.getItem('powerfit_app_version') !== APP_VERSION) {
+        // Clear only the session/auth, not user data
+        localStorage.removeItem('powerfit_current_user');
+        localStorage.setItem('powerfit_app_version', APP_VERSION);
+        console.log('[PowerFit] Cache cleared for version', APP_VERSION);
       }
+      // Silent error logging (no more alerts)
+      window.addEventListener('error', function(e) {
+        console.error('[PowerFit] JS Error:', e.message, 'at line', e.lineno);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('[PowerFit] Promise Error:', e.reason);
+      });
     </script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

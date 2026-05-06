@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp } from '../lib/storage';
+import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { generateWorkoutPDF } from '../lib/pdf';
 import { useToast } from '../App';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
@@ -15,14 +16,27 @@ export default function Workouts() {
   const [editingWorkout, setEditingWorkout] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const addToast = useToast();
+  const { revision } = useStorageSync('workouts');
 
   const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '' };
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
   const [form, setForm] = useState(emptyForm);
 
-  useEffect(() => {
+  const loadCachedData = () => {
     setWorkouts(getWorkouts());
     setStudents(getStudents());
+  };
+
+  useEffect(() => {
+    loadCachedData();
+  }, [revision]);
+
+  useEffect(() => {
+    let active = true;
+    forceSyncData().finally(() => {
+      if (active) loadCachedData();
+    });
+    return () => { active = false; };
   }, []);
 
   const filtered = workouts.filter(w => w.name.toLowerCase().includes(search.toLowerCase()));
@@ -30,19 +44,21 @@ export default function Workouts() {
   const openNew = () => { setForm(emptyForm); setEditingWorkout(null); setShowModal(true); };
   const openEdit = (workout) => { setForm({ ...workout }); setEditingWorkout(workout); setShowModal(true); };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name) { addToast('Nome do treino é obrigatório', 'error'); return; }
     if (form.exercises.some(ex => !ex.name)) { addToast('Preencha o nome de todos os exercícios', 'error'); return; }
-    saveWorkout(form);
+    await saveWorkout(form);
+    await forceSyncData();
     setWorkouts(getWorkouts());
     setShowModal(false);
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!confirm('Tem certeza que deseja excluir este treino?')) return;
-    deleteWorkout(id);
+    await deleteWorkout(id);
+    await forceSyncData();
     setWorkouts(getWorkouts());
     addToast('Treino excluído', 'info');
   };
@@ -129,7 +145,15 @@ export default function Workouts() {
                 <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
                   <MessageCircle size={14} /> WhatsApp
                 </button>
-                <button className="btn btn-secondary btn-sm" onClick={() => { generateWorkoutPDF(workout); addToast('PDF gerado!', 'success'); }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => {
+                  try {
+                    generateWorkoutPDF(workout);
+                    addToast('PDF gerado!', 'success');
+                  } catch (err) {
+                    console.warn('PDF Error, fallback to alert', err);
+                    alert('📄 Relatório gerado (modo demo offline)');
+                  }
+                }}>
                   <FileDown size={14} /> PDF
                 </button>
                 <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useToast } from '../App';
-import { getPlans, setUserPlan, isVipUser, getUserPlan } from '../lib/storage';
+import { getPlans, setUserPlan, getUserPlan } from '../lib/storage';
 import { Zap, CheckCircle, Crown, Shield, Star, Rocket, ArrowRight, User, GraduationCap } from 'lucide-react';
 
 export default function PricingPlans() {
@@ -13,14 +13,14 @@ export default function PricingPlans() {
   
   const plans = getPlans(activeType);
   const currentPlan = getUserPlan();
-  const isVip = isVipUser(user?.email);
+  const isVip = user?.type === 'aluno' && user?.isPremium === true;
 
   useEffect(() => {
     if (user?.type) setActiveType(user.type);
   }, [user]);
 
   const planIcons = [Zap, Star, Crown, Rocket];
-  const planColors = ['#3B82F6', '#FF6B35', '#F59E0B', '#8B5CF6'];
+  const planColors = ['#3B82F6', '#FF6B35', '#F59E0B', '#22d3ee'];
 
   const handleSelectPlan = (planId) => {
     if (!user) {
@@ -193,7 +193,7 @@ export default function PricingPlans() {
           inset: 0;
           background: radial-gradient(ellipse at 20% 20%, rgba(255,107,53,0.06) 0%, transparent 50%),
                       radial-gradient(ellipse at 80% 80%, rgba(59,130,246,0.05) 0%, transparent 50%),
-                      radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.04) 0%, transparent 40%),
+                      radial-gradient(ellipse at 50% 50%, rgba(34,211,238,0.04) 0%, transparent 40%),
                       var(--bg-primary);
         }
 

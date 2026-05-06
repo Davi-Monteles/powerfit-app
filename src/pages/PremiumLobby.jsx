@@ -24,7 +24,6 @@ export default function PremiumLobby({ onUpgrade }) {
 
   const benefits = [
     { icon: <Zap size={20} className="text-primary" />, title: "IA Personal Trainer", desc: "Uma inteligência artificial treinada para analisar seus treinos e sugerir ajustes baseados na sua evolução." },
-    { icon: <Star size={20} className="text-primary" />, title: "Atlas Anatômico 3D", desc: "Mapeie seu corpo em uma malha 3D interativa para visualizar assimetrias e foco muscular." },
     { icon: <TrendingUp size={20} className="text-primary" />, title: "Gráficos de Evolução Pro", desc: "Acompanhe todo o seu histórico com métricas avançadas e relatórios de desempenho." },
     { icon: <Shield size={20} className="text-primary" />, title: "Treino sem Limites", desc: "Acesse todas as funcionalidades da plataforma mesmo sem um Personal Trainer vinculado." }
   ];
@@ -38,7 +37,7 @@ export default function PremiumLobby({ onUpgrade }) {
         <Crown size={48} style={{ color: 'var(--primary)', marginBottom: '16px' }} />
         <h1 style={{ fontSize: '2.5rem', marginBottom: '16px' }}>Treine como um <span className="text-gradient">PRO</span></h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto' }}>
-          Desbloqueie o acesso total à IA Personal e ao Atlas 3D para treinar com a tecnologia mais avançada do mercado.
+          Desbloqueie o acesso total à IA Personal para treinar com a tecnologia mais avançada do mercado.
         </p>
       </div>
 
@@ -74,7 +73,6 @@ export default function PremiumLobby({ onUpgrade }) {
 
             <ul style={{ textAlign: 'left', marginBottom: '32px', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.95rem' }}>
               <li style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><CheckCircle size={18} className="text-success" /> IA Trainer 24h Disponível</li>
-              <li style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><CheckCircle size={18} className="text-success" /> Atlas Anatômico 3D Completo</li>
               <li style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><CheckCircle size={18} className="text-success" /> Sem anúncios e interrupções</li>
             </ul>
 

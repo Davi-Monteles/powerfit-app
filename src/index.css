@@ -20,6 +20,7 @@
   /* Background */
   --bg-primary: #0B1120;
   --bg-secondary: #111827;
+  --bg-secondary-rgb: 17, 24, 39;
   --bg-card: #1A2332;
   --bg-card-hover: #1F2B3D;
   --bg-elevated: #243044;
@@ -70,6 +71,7 @@
 [data-theme="light"] {
   --bg-primary: #F8FAFC;
   --bg-secondary: #FFFFFF;
+  --bg-secondary-rgb: 255, 255, 255;
   --bg-card: #FFFFFF;
   --bg-card-hover: #F1F5F9;
   --bg-elevated: #F1F5F9;
@@ -429,7 +431,32 @@ tr:last-child td { border-bottom: none; }
 .stat-icon.orange { background: var(--gradient-primary); }
 .stat-icon.blue { background: var(--gradient-secondary); }
 .stat-icon.green { background: linear-gradient(135deg, #22C55E, #16A34A); }
-.stat-icon.purple { background: linear-gradient(135deg, #8B5CF6, #7C3AED); }
+.stat-icon.cyan { background: linear-gradient(135deg, #22d3ee, #06b6d4); }
+
+/* ========== MOBILE FRAME (Desktop Wrapper) ========== */
+.app-desktop-bg {
+  min-height: 100vh;
+  background: #020617;
+  display: flex;
+  justify-content: center;
+}
+
+.app-mobile-frame {
+  width: 100%;
+  max-width: 28rem;
+  background: #0f172a;
+  min-height: 100vh;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow-x: hidden;
+}
+
+@media (max-width: 480px) {
+  .app-mobile-frame {
+    max-width: 100%;
+    box-shadow: none;
+  }
+}
 
 .stat-info h4 {
   font-size: 1.8rem;

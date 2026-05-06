@@ -22,6 +22,12 @@ CREATE TABLE public.students (
   gender text,
   height numeric,
   weight numeric,
+  objective text,
+  "daysPerWeek" integer DEFAULT 3,
+  shift text,
+  address text,
+  "medicalNotes" text,
+  target_muscles jsonb DEFAULT '[]'::jsonb,
   "isPremium" boolean DEFAULT false,
   password text NOT NULL,
   "workoutIds" jsonb DEFAULT '[]'::jsonb,
@@ -35,6 +41,7 @@ CREATE TABLE public.workouts (
   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
   "personalId" uuid REFERENCES public.users(id),
   name text NOT NULL,
+  category text,
   description text,
   exercises jsonb DEFAULT '[]'::jsonb,
   "createdAt" timestamp with time zone DEFAULT now(),
@@ -51,6 +58,9 @@ CREATE TABLE public.evolution (
   arm numeric,
   legs numeric,
   chest numeric,
+  waist numeric,
+  hip numeric,
+  thigh numeric,
   "createdAt" timestamp with time zone DEFAULT now()
 );
 
@@ -59,8 +69,10 @@ CREATE TABLE public.photos (
   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
   "studentId" uuid REFERENCES public.students(id) ON DELETE CASCADE,
   date date NOT NULL,
-  url text NOT NULL,
-  "type" text NOT NULL, -- 'before' ou 'after'
+  image text,
+  label text,
+  url text,
+  "type" text,
   "createdAt" timestamp with time zone DEFAULT now()
 );
 
@@ -69,9 +81,21 @@ CREATE TABLE public.schedule (
   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
   "personalId" uuid REFERENCES public.users(id),
   "studentId" uuid REFERENCES public.students(id),
+  title text,
   tittle text,
   date date NOT NULL,
   time text NOT NULL,
+  type text,
+  notes text,
+  "createdAt" timestamp with time zone DEFAULT now()
+);
+
+-- 7. Table: weekly_schedules (Agendamentos gerados pela IA)
+CREATE TABLE public.weekly_schedules (
+  id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
+  student_id uuid REFERENCES public.students(id) ON DELETE CASCADE,
+  workout_id text,
+  day_of_week text NOT NULL,
   "createdAt" timestamp with time zone DEFAULT now()
 );
 

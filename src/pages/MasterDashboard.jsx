@@ -1,20 +1,22 @@
 import { useState, useEffect } from 'react';
 import { getUsers, getStudents, getWorkouts } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { TrendingUp, Users, Zap, DollarSign, Dumbbell, Crown } from 'lucide-react';
-import { getPlans, isVipUser } from '../lib/storage';
+import { getPlans } from '../lib/storage';
 
 
 export default function MasterDashboard() {
   const [personals, setPersonals] = useState([]);
   const [students, setStudents] = useState([]);
   const [workouts, setWorkouts] = useState([]);
+  const { revision } = useStorageSync();
 
   useEffect(() => {
     const allUsers = getUsers();
     setPersonals(allUsers.filter(u => u.type === 'personal' || u.type === 'master'));
     setStudents(getStudents());
     setWorkouts(getWorkouts());
-  }, []);
+  }, [revision]);
 
 
   const premiumStudentsCount = students.filter(s => s.isPremium).length;
@@ -79,24 +81,22 @@ export default function MasterDashboard() {
               <tbody>
                 {personals.map(p => {
                   const personalStudents = students.filter(s => s.personalId === p.id);
-                  const isVip = isVipUser(p.email);
                   const plan = getPlans().find(pl => pl.id === p.planId);
-                  const limit = isVip ? '∞' : (plan?.studentLimit || 0);
+                  const limit = plan?.studentLimit || 0;
 
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '12px 8px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {p.name}
-                        {isVip && <Crown size={14} style={{ color: '#F59E0B' }} title="VIP - Elite Grátis" />}
                       </td>
                       <td style={{ padding: '12px 8px', color: 'var(--text-secondary)' }}>{p.email}</td>
                       <td style={{ padding: '12px 8px' }}>
-                        <span className={`badge ${personalStudents.length >= limit && !isVip ? 'badge-danger' : 'badge-primary'}`}>
+                        <span className={`badge ${personalStudents.length >= limit ? 'badge-danger' : 'badge-primary'}`}>
                           {personalStudents.length} / {limit}
                         </span>
                       </td>
                       <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>
-                         {isVip ? 'Plano Elite (VIP)' : (plan?.name || 'Nenhum')}
+                         {plan?.name || 'Nenhum'}
                       </td>
                       <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         {p.createdAt ? new Date(p.createdAt).toLocaleDateString('pt-BR') : '—'}

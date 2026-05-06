@@ -1,78 +1,88 @@
-const CACHE_NAME = 'powerfit-cache-v1';
-const urlsToCache = [
+const CACHE_NAME = 'powerfit-pwa-v1';
+const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg',
-  '/icons.svg',
-  // Assumes Vite build output dirs
-  '/assets/'
+  '/favicon.svg'
 ];
 
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache).catch(err => {
-          console.warn('Alguns assets não puderam ser cacheados na instalação:', err);
-        });
-      })
-  );
+self.addEventListener('install', (event) => {
   self.skipWaiting();
-});
-
-self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
+    caches.open(CACHE_NAME).then((cache) => {
+      // Don't fail the whole install if one file fails to cache
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(url => cache.add(url).catch(err => console.log('Failed to cache', url, err)))
       );
     })
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', event => {
-  // Ignora requisições de API (ex: Supabase, MercadoPago)
-  if (event.request.url.includes('api.') || event.request.url.includes('supabase.')) {
-    return;
-  }
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
+  );
+});
 
-  // Intercepta rotas de navegação (SPA)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      caches.match('/index.html').then(response => {
-        return response || fetch(event.request).catch(() => caches.match('/index.html'));
-      })
-    );
-    return;
-  }
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
 
-  // Cache first, then network para assets
+  const url = new URL(event.request.url);
+  const isHttpRequest = url.protocol === 'http:' || url.protocol === 'https:';
+  const isViteDevServer =
+    ['localhost', '127.0.0.1'].includes(url.hostname) && url.port === '5173';
+  const isViteDevTraffic =
+    url.pathname.startsWith('/@vite') ||
+    url.pathname.startsWith('/@react-refresh') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('__vite');
+
+  if (!isHttpRequest || isViteDevServer || isViteDevTraffic || event.request.url.includes('supabase.co')) return;
+
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        if (response) return response;
-        return fetch(event.request).then(
-          function(response) {
-            if(!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            var responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then(function(cache) {
-                cache.put(event.request, responseToCache);
-              });
-            return response;
+        if (event.request.mode === 'navigate') {
+          return response;
+        }
+
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(async () => {
+        if (event.request.mode === 'navigate') {
+          const cachedShell = await caches.match('/index.html') || await caches.match('/');
+          if (cachedShell) return cachedShell;
+
+          try {
+            return await fetch('/index.html');
+          } catch {
+            return new Response('Offline', {
+              status: 503,
+              statusText: 'Offline',
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            });
           }
-        );
-      }).catch(() => {
-        // Fallback para requisições offline failed caso necessário
+        }
+
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        return new Response('Offline', {
+          status: 503,
+          statusText: 'Offline',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
       })
   );
 });

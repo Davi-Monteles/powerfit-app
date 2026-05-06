@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getStudents, getPhotosByStudent, savePhoto, deletePhoto } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { useToast } from '../App';
 import { Camera, Plus, X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export default function Photos() {
   const [compareMode, setCompareMode] = useState(false);
   const [compareIdxs, setCompareIdxs] = useState([0, -1]);
   const addToast = useToast();
+  const { revision } = useStorageSync('photos');
 
   const today = new Date().toISOString().split('T')[0];
   const [form, setForm] = useState({ date: today, label: '', image: '' });
@@ -19,11 +21,11 @@ export default function Photos() {
     const s = getStudents();
     setStudents(s);
     if (s.length > 0) setSelectedStudent(s[0].id);
-  }, []);
+  }, [revision]);
 
   useEffect(() => {
     if (selectedStudent) setPhotos(getPhotosByStudent(selectedStudent));
-  }, [selectedStudent]);
+  }, [selectedStudent, revision]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -34,19 +36,19 @@ export default function Photos() {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!form.image) { addToast('Selecione uma foto', 'error'); return; }
-    savePhoto({ ...form, studentId: selectedStudent });
+    await savePhoto({ ...form, studentId: selectedStudent });
     setPhotos(getPhotosByStudent(selectedStudent));
     setShowModal(false);
     setForm({ date: today, label: '', image: '' });
     addToast('Foto salva!', 'success');
   };
 
-  const handleDeletePhoto = (id) => {
+  const handleDeletePhoto = async (id) => {
     if (!confirm('Excluir esta foto?')) return;
-    deletePhoto(id);
+    await deletePhoto(id);
     setPhotos(getPhotosByStudent(selectedStudent));
     addToast('Foto removida', 'info');
   };

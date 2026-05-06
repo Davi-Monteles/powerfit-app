@@ -1,30 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
-import { exportAllData, importData, getMercadoPagoToken, saveMercadoPagoToken, getStudentById, saveStudent } from '../lib/storage';
+import { useState, useRef } from 'react';
+import { exportAllData, importData, getStudentById, saveStudent, getStudentByEmail } from '../lib/storage';
+import { supabase } from '../lib/supabaseClient';
 import { useToast, useTheme, useAuth } from '../App';
 import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield, CreditCard, User } from 'lucide-react';
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, login: setUser } = useAuth();
   const addToast = useToast();
   const { theme, toggleTheme } = useTheme();
   const fileInputRef = useRef(null);
   
   const isStudent = user?.type === 'aluno';
-  const studentData = isStudent && user?.studentId ? getStudentById(user.studentId) : null;
+  const studentData = isStudent ? (getStudentByEmail(user?.email) || (user?.studentId ? getStudentById(user.studentId) : null)) : null;
   
   const [importing, setImporting] = useState(false);
-  const [mpToken, setMpToken] = useState('');
   const [profile, setProfile] = useState({
     weight: studentData?.weight || '',
     height: studentData?.height || '',
     birthDate: studentData?.birthDate || ''
   });
-
-  useEffect(() => {
-    if (!isStudent) {
-      setMpToken(getMercadoPagoToken());
-    }
-  }, [isStudent]);
 
   const handleExport = () => {
     try {
@@ -60,20 +54,75 @@ export default function Settings() {
     setTimeout(() => window.location.reload(), 1500);
   };
 
-  const handleSaveMpToken = () => {
-    saveMercadoPagoToken(mpToken);
-    addToast('Token do Mercado Pago salvo com sucesso!', 'success');
-  };
-
-  const handleSaveProfile = () => {
-    if (studentData) {
-      saveStudent({
-        ...studentData,
+  const handleSaveProfile = async () => {
+    try {
+      const updates = {
         weight: Number(profile.weight),
         height: Number(profile.height),
-        birthDate: profile.birthDate
-      });
-      addToast('Perfil atualizado com sucesso!', 'success');
+        birthDate: profile.birthDate,
+        target_muscles: studentData?.target_muscles || []
+      };
+
+      // Validação
+      if (updates.weight <= 0 || updates.height <= 0 || isNaN(updates.weight) || isNaN(updates.height)) {
+        addToast('Peso e altura devem ser números válidos maiores que zero.', 'error');
+        return;
+      }
+
+      // 1. Atualizar Supabase
+      const cleanEmail = user?.email?.trim()?.toLowerCase();
+      if (!cleanEmail) {
+        addToast('Erro ao identificar e-mail do usuário.', 'error');
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('students')
+        .update(updates)
+        .eq('email', cleanEmail);
+        
+      if (error) {
+        if (error.code === 'PGRST204' || error.message?.includes('target_muscles')) {
+          if (import.meta.env.DEV) console.warn('[PowerFit] Coluna target_muscles não existe. Fazendo fallback de salvamento híbrido.');
+          const fallbackUpdates = {
+             weight: updates.weight,
+             height: updates.height,
+             birthDate: updates.birthDate
+          };
+          const fallbackRes = await supabase
+             .from('students')
+             .update(fallbackUpdates)
+             .eq('email', cleanEmail);
+             
+          if (fallbackRes.error) {
+             addToast('Erro ao salvar fallback no banco (Supabase).', 'error');
+             if (import.meta.env.DEV) console.error(fallbackRes.error);
+             return;
+          }
+          // target_muscles será salvo apenas localmente abaixo
+        } else {
+          addToast('Erro ao salvar no banco (Supabase).', 'error');
+          if (import.meta.env.DEV) console.error(error);
+          return;
+        }
+      }
+
+      // 2. Atualizar estado local para imediaticidade na UI
+      const updatedUser = { ...user, ...updates };
+      localStorage.setItem('powerfit_current_user', JSON.stringify(updatedUser));
+
+      if (studentData && (studentData.id || studentData.studentId)) {
+        saveStudent({ ...studentData, ...updates });
+      }
+
+      if (setUser) {
+        setUser(updatedUser);
+      }
+      
+      addToast('Perfil atualizado com sucesso no App e nuvem!', 'success');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      addToast(e.message || 'Erro de conexão.', 'error');
     }
   };
 
@@ -117,30 +166,21 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Mercado Pago Integration (Only for Personal) */}
+        {/* Payment Integration Placeholder (Only for Personal) */}
         {!isStudent && (
           <div className="card" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <CreditCard size={22} style={{ color: 'var(--primary)' }} />
               <div>
-                <h4 style={{ fontSize: '1rem' }}>Integração Financeira</h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Configurar pagamentos via Mercado Pago</p>
+                <h4 style={{ fontSize: '1rem' }}>Integração de Pagamentos (Em Breve)</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A cobrança integrada será ativada em uma próxima versão.</p>
               </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Access Token (Produção)</label>
-              <input 
-                type="password" 
-                className="form-input" 
-                placeholder="APP_USR-..." 
-                value={mpToken} 
-                onChange={e => setMpToken(e.target.value)} 
-              />
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Necessário para gerar links de pagamento reais para o Plano Premium.
+            <div style={{ padding: '14px', borderRadius: '8px', border: '1px dashed var(--border-hover)', background: 'rgba(255,255,255,0.03)' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Pagamentos por Pix, cartão e assinaturas ficarão concentrados aqui quando a integração estiver pronta.
               </p>
             </div>
-            <button className="btn btn-primary" onClick={handleSaveMpToken}>Salvar Token</button>
           </div>
         )}
 

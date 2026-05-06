@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { registerUser, loginUser, isVipUser, getUserPlan } from '../lib/storage';
+import { registerUser, loginUser, hydrateSessionUser, getUserPlan } from '../lib/storage';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth({ onLogin }) {
@@ -11,8 +11,26 @@ export default function Auth({ onLogin }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', type: 'aluno' });
+  const [loginForm, setLoginForm] = useState({ email: '' });
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', type: 'aluno' });
+  const [loginPassword, setLoginPassword] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+
+  const persistSafeSession = (sessionUser) => {
+    const hydrated = hydrateSessionUser(sessionUser);
+    if (!hydrated) return null;
+
+    const safeUser = { ...hydrated };
+    delete safeUser.password;
+    delete safeUser.senha;
+    localStorage.setItem('powerfit_current_user', JSON.stringify(safeUser));
+    return safeUser;
+  };
+
+  const clearPasswordInputs = () => {
+    setLoginPassword('');
+    setRegisterPassword('');
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -27,34 +45,53 @@ export default function Auth({ onLogin }) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const password = loginPassword;
     try {
-      const user = await loginUser(loginForm.email, loginForm.password);
+      let user = await loginUser(loginForm.email, password);
+      
+      // Explicit fetch to sync latest data
+      if (user?.email) {
+        try {
+          const { supabase } = await import('../lib/supabaseClient.js');
+          const table = user.type === 'aluno' ? 'students' : 'users';
+          const { data: rows } = await supabase.from(table).select('*').eq('email', user.email.toLowerCase().trim()).limit(1);
+          const freshData = Array.isArray(rows) ? rows[0] : null;
+          if (freshData) {
+             user = { ...user, ...freshData };
+          }
+        } catch (err) {
+          if (import.meta.env.DEV) console.debug('[PowerFit] Fresh auth sync skipped:', err.message);
+        }
+      }
+
+      user = persistSafeSession(user);
       onLogin(user);
       
       const plan = getUserPlan();
-      const isVip = isVipUser(user.email);
 
       if (user.type === 'aluno') {
-        const studentPlan = getUserPlan(user.id);
-        // Se aluno VIP ou Pro, vai direto. Se free e sem personal, talvez queira ver planos.
         navigate('/aluno');
       } else if (user.type === 'master') {
         navigate('/master');
       } else if (user.type === 'personal') {
-        navigate(plan || isVip ? '/dashboard' : '/planos');
+        navigate(plan ? '/dashboard' : '/planos');
       } else {
         navigate('/dashboard');
       }
     } catch (err) {
       setError(err.message);
+    } finally {
+      clearPasswordInputs();
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
-    if (!registerForm.name || !registerForm.email || !registerForm.password) {
+    const password = registerPassword;
+
+    if (!registerForm.name || !registerForm.email || !password) {
       setError('Preencha todos os campos obrigatórios');
       return;
     }
@@ -67,23 +104,23 @@ export default function Auth({ onLogin }) {
 
     setLoading(true);
     try {
-      const user = await registerUser(registerForm);
+      const user = persistSafeSession(await registerUser({ ...registerForm, password }));
       onLogin(user);
-      
-      const isVip = isVipUser(user.email);
       
       if (user.type === 'aluno') {
         // Alunos que entram sozinhos devem ver os planos primeiro para se tornarem "Pro"
         navigate('/planos');
       } else if (user.type === 'personal') {
-        navigate(isVip ? '/dashboard' : '/planos');
+        navigate('/planos');
       } else {
         navigate('/dashboard');
       }
     } catch (err) {
       setError(err.message);
+    } finally {
+      clearPasswordInputs();
+      setLoading(false);
     }
-    setLoading(false);
   };
 
 
@@ -101,8 +138,8 @@ export default function Auth({ onLogin }) {
         </div>
 
         <div className="tabs">
-          <button className={`tab ${tab === 'login' ? 'active' : ''}`} onClick={() => { setTab('login'); setError(''); }}>Entrar</button>
-          <button className={`tab ${tab === 'register' ? 'active' : ''}`} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
+          <button className={"tab " + (tab === 'login' ? 'active' : '')} onClick={() => { setTab('login'); setError(''); }}>Entrar</button>
+          <button className={"tab " + (tab === 'register' ? 'active' : '')} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
         </div>
 
         {error && <div className="auth-error">{error}</div>}
@@ -113,14 +150,14 @@ export default function Auth({ onLogin }) {
               <label className="form-label">Email</label>
               <div className="input-icon-wrapper">
                 <Mail size={18} className="input-icon" />
-                <input type="email" className="form-input input-with-icon" placeholder="seu@email.com" value={loginForm.email} onChange={e => setLoginForm({...loginForm, email: e.target.value})} required />
+                <input type="email" className="form-input input-with-icon" placeholder="seu@email.com" value={loginForm.email || ''} onChange={e => setLoginForm({...loginForm, email: e.target.value})} required />
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Senha</label>
               <div className="input-icon-wrapper">
                 <Lock size={18} className="input-icon" />
-                <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="••••••" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} required />
+                <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="••••••" autoComplete="current-password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
                 <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -141,28 +178,28 @@ export default function Auth({ onLogin }) {
               <label className="form-label">Nome Completo *</label>
               <div className="input-icon-wrapper">
                 <User size={18} className="input-icon" />
-                <input type="text" className="form-input input-with-icon" placeholder="Seu nome" value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} required />
+                <input type="text" className="form-input input-with-icon" placeholder="Seu nome" value={registerForm.name || ''} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} required />
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Email *</label>
               <div className="input-icon-wrapper">
                 <Mail size={18} className="input-icon" />
-                <input type="email" className="form-input input-with-icon" placeholder="seu@email.com" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} required />
+                <input type="email" className="form-input input-with-icon" placeholder="seu@email.com" value={registerForm.email || ''} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} required />
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Telefone</label>
               <div className="input-icon-wrapper">
                 <Phone size={18} className="input-icon" />
-                <input type="tel" className="form-input input-with-icon" placeholder="(11) 99999-9999" value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} />
+                <input type="tel" className="form-input input-with-icon" placeholder="(11) 99999-9999" value={registerForm.phone || ''} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} />
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Senha *</label>
               <div className="input-icon-wrapper">
                 <Lock size={18} className="input-icon" />
-                <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="Mín. 6 caracteres" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} required minLength={6} />
+                <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="Mín. 6 caracteres" autoComplete="new-password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)} required minLength={6} />
                 <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -173,14 +210,14 @@ export default function Auth({ onLogin }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <button 
                   type="button" 
-                  className={`btn ${registerForm.type === 'aluno' ? 'btn-primary' : 'btn-outline'}`} 
+                  className={"btn " + (registerForm.type === 'aluno' ? 'btn-primary' : 'btn-outline')} 
                   onClick={() => setRegisterForm({...registerForm, type: 'aluno'})}
                 >
                   <User size={16} style={{ marginRight: '6px' }} /> Aluno
                 </button>
                 <button 
                   type="button" 
-                  className={`btn ${registerForm.type === 'personal' ? 'btn-primary' : 'btn-outline'}`}
+                  className={"btn " + (registerForm.type === 'personal' ? 'btn-primary' : 'btn-outline')}
                   onClick={() => setRegisterForm({...registerForm, type: 'personal'})}
                 >
                   <Zap size={16} style={{ marginRight: '6px' }} /> Personal

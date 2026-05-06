@@ -1,300 +1,532 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check, Star, Zap, Crown, ArrowLeft, ShieldCheck, Sparkles, Users, TrendingUp, Lock } from 'lucide-react';
+import { createMercadoPagoPreference } from '../services/paymentService';
 import { useAuth, useToast } from '../App';
-import { getUserPlan, getStudentUsage, getPlans, setUserPlan, isVipUser } from '../lib/storage';
-import { Crown, Zap, Star, Rocket, CheckCircle, ArrowUpCircle, Shield, Users, TrendingUp, Calendar } from 'lucide-react';
+import { getUserPlan, getStudentUsage } from '../lib/storage';
 
+// ─── Definição dos planos ────────────────────────────────────────────────────
+const PLANS = [
+  {
+    id: 'Starter',
+    name: 'Starter',
+    price: '24,90',
+    priceNum: 24.9,
+    description: 'Ideal para quem está começando.',
+    features: ['Até 10 alunos', 'Dashboard completo', 'Montagem de treinos', 'Suporte via E-mail'],
+    iconColor: '#71717a',
+    glowColor: 'rgba(113,113,122,0.12)',
+    borderColor: 'rgba(113,113,122,0.25)',
+    btnGradient: 'linear-gradient(135deg,#3f3f46,#52525b)',
+    btnHoverGradient: 'linear-gradient(135deg,#52525b,#71717a)',
+  },
+  {
+    id: 'Pro',
+    name: 'Pro',
+    price: '49,90',
+    priceNum: 49.9,
+    description: 'O equilíbrio perfeito entre IA e gestão.',
+    features: ['Até 30 alunos', 'IA (20 treinos/mês)', 'Fotos antes/depois', 'Suporte Prioritário'],
+    isPopular: true,
+    iconColor: '#3b82f6',
+    glowColor: 'rgba(59,130,246,0.15)',
+    borderColor: 'rgba(59,130,246,0.4)',
+    btnGradient: 'linear-gradient(135deg,#2563eb,#3b82f6)',
+    btnHoverGradient: 'linear-gradient(135deg,#1d4ed8,#2563eb)',
+  },
+  {
+    id: 'Elite',
+    name: 'Elite',
+    price: '89,90',
+    priceNum: 89.9,
+    description: 'Domine o mercado sem limites.',
+    features: ['Alunos Ilimitados', 'IA Ilimitada (24/7)', 'Relatórios Avançados', 'Suporte VIP WhatsApp'],
+    iconColor: '#f97316',
+    glowColor: 'rgba(249,115,22,0.15)',
+    borderColor: 'rgba(249,115,22,0.4)',
+    btnGradient: 'linear-gradient(135deg,#ea580c,#f97316)',
+    btnHoverGradient: 'linear-gradient(135deg,#c2410c,#ea580c)',
+  },
+];
+
+// ─── Ícones por plano ────────────────────────────────────────────────────────
+const PlanIcon = ({ planId, color }) => {
+  const size = 22;
+  if (planId === 'Pro') return <Zap size={size} color={color} />;
+  if (planId === 'Elite') return <Crown size={size} color={color} />;
+  return <Star size={size} color={color} />;
+};
+
+// ─── Componente principal ────────────────────────────────────────────────────
 export default function MyPlan() {
-  const { user, login } = useAuth();
   const navigate = useNavigate();
+  const auth = useAuth();
   const addToast = useToast();
   const [loading, setLoading] = useState(null);
+  const [hoveredPlan, setHoveredPlan] = useState(null);
 
-  const plan = getUserPlan();
-  const usage = getStudentUsage();
-  const plans = getPlans();
-  const isVip = isVipUser(user?.email);
+  // Guards contra dados ausentes
+  const user = auth?.user || null;
+  const currentPlanData = getUserPlan() || null;
+  const usage = getStudentUsage() || { used: 0, limit: 0, percentage: 0 };
+  const isVip = user?.type === 'aluno' && user?.isPremium === true;
 
-  const planIcons = { starter: Zap, pro: Star, premium: Crown, elite: Rocket };
-  const planColors = { starter: '#3B82F6', pro: '#FF6B35', premium: '#F59E0B', elite: '#8B5CF6' };
+  // Identifica o plano atual pelo id (case-insensitive)
+  const currentPlanId = currentPlanData?.id
+    ? currentPlanData.id.charAt(0).toUpperCase() + currentPlanData.id.slice(1).toLowerCase()
+    : null;
 
-  const Icon = planIcons[plan?.id] || Zap;
-  const color = planColors[plan?.id] || '#3B82F6';
+  // Progresso de uso (sem Infinity puro — usa 999 como limite para VIP)
+  const usageLimit = usage.limit === Infinity ? 999 : (usage.limit || 0);
+  const usagePercent = usageLimit > 0 ? Math.min((usage.used / usageLimit) * 100, 100) : 0;
+  const usageDisplayLimit = usage.limit === Infinity || usage.limit >= 999 ? '∞' : String(usage.limit);
 
-  const handleUpgrade = (planId) => {
-    setLoading(planId);
-    setTimeout(() => {
-      const updatedUser = setUserPlan(planId);
-      login(updatedUser);
-      addToast(`Upgrade para ${plans.find(p => p.id === planId).name} realizado! 🚀`, 'success');
+  // Cor da barra de progresso
+  const barColor =
+    usagePercent >= 90
+      ? 'linear-gradient(90deg,#ef4444,#dc2626)'
+      : usagePercent >= 70
+      ? 'linear-gradient(90deg,#f97316,#ea580c)'
+      : 'linear-gradient(90deg,#f97316,#fb923c)';
+
+  // ── Handler de pagamento ──────────────────────────────────────────────────
+  const handleSubscribe = async (plan) => {
+    if (!user) {
+      if (addToast) addToast('Faça login para continuar.', 'error');
+      navigate('/auth');
+      return;
+    }
+
+    setLoading(plan.id);
+    try {
+      const preference = await createMercadoPagoPreference({
+        userId: user.id || user.email || 'unknown',
+        feature: plan.id,
+        amount: plan.priceNum,
+      });
+
+      if (preference && preference.init_point) {
+        window.open(preference.init_point, '_blank');
+        if (addToast) {
+          const msg = preference.isFallback
+            ? 'Redirecionando ao Mercado Pago...'
+            : 'Abrindo checkout para o plano ' + plan.name + '...';
+          addToast(msg, 'info');
+        }
+      } else {
+        if (addToast) addToast('Nao foi possivel abrir o checkout. Tente novamente.', 'error');
+      }
+    } catch (error) {
+      console.error('[MyPlan] Erro ao criar preferencia:', error);
+      if (addToast) addToast('Erro ao iniciar pagamento. Tente novamente.', 'error');
+    } finally {
       setLoading(null);
-    }, 1200);
+    }
   };
 
-  if (!plan) {
-    navigate('/planos');
-    return null;
-  }
-
-  const usagePercent = usage.limit === Infinity ? 5 : usage.percentage;
-  const barColor = usagePercent > 85 ? '#EF4444' : usagePercent > 60 ? '#F59E0B' : '#22C55E';
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="page-container animate-fade-in">
-      <div className="page-header">
-        <h2><Crown size={24} style={{ color: 'var(--primary)' }} /> Meu Plano</h2>
-      </div>
+    <div style={{
+      minHeight: '100vh',
+      background: '#080808',
+      color: '#fff',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+      position: 'relative',
+      overflowX: 'hidden',
+      paddingBottom: '80px',
+    }}>
 
-      {/* Current Plan Card */}
-      <div className="myplan-current">
+      {/* Ambient background glows */}
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(249,115,22,0.08), transparent)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      <div style={{
+        position: 'fixed',
+        top: '60%',
+        left: '-20%',
+        width: '600px',
+        height: '600px',
+        background: 'radial-gradient(circle, rgba(59,130,246,0.05), transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+
+      {/* Content */}
+      <div style={{
+        position: 'relative',
+        zIndex: 1,
+        maxWidth: '1100px',
+        margin: '0 auto',
+        padding: '32px 20px',
+      }}>
+
+        {/* ── Header ─────────────────────────────────────────── */}
+        <div style={{ marginBottom: '48px' }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'none',
+              border: 'none',
+              color: '#71717a',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              marginBottom: '20px',
+              padding: 0,
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; }}
+          >
+            <ArrowLeft size={15} />
+            Voltar ao painel
+          </button>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: '24px' }}>
+            <div>
+              <p style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.15em', color: '#f97316', textTransform: 'uppercase', marginBottom: '8px' }}>
+                PowerFit Academy
+              </p>
+              <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }}>
+                Gerenciar{' '}
+                <span style={{ background: 'linear-gradient(135deg,#f97316,#fb923c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                  Meu Plano
+                </span>
+              </h1>
+            </div>
+
+            {/* Usage card */}
+            <div style={{
+              background: 'rgba(255,255,255,0.04)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '24px',
+              padding: '20px 24px',
+              minWidth: '260px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', color: '#71717a', textTransform: 'uppercase' }}>
+                  <Users size={13} />
+                  Uso de Alunos
+                </span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f97316' }}>
+                  {usage.used} / {usageDisplayLimit}
+                </span>
+              </div>
+              <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '99px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: usagePercent + '%',
+                  background: barColor,
+                  borderRadius: '99px',
+                  transition: 'width 1s cubic-bezier(.4,0,.2,1)',
+                }} />
+              </div>
+              {currentPlanData && (
+                <p style={{ marginTop: '10px', fontSize: '0.72rem', color: '#52525b', fontWeight: 600 }}>
+                  Plano atual: <span style={{ color: '#a1a1aa' }}>{currentPlanData.name || currentPlanId}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIP Banner ─────────────────────────────────────── */}
         {isVip && (
-          <div className="vip-badge">
-            <Shield size={14} /> CONTA VIP — Acesso Total Gratuito
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(234,88,12,0.08))',
+            border: '1px solid rgba(249,115,22,0.3)',
+            borderRadius: '20px',
+            padding: '16px 24px',
+            marginBottom: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+          }}>
+            <ShieldCheck color="#f97316" size={20} />
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fdba74' }}>
+              Voce possui acesso VIP Vitalicio — Todos os recursos desbloqueados
+            </span>
           </div>
         )}
-        <div className="myplan-icon" style={{ background: `${color}15`, color }}>
-          <Icon size={36} />
-        </div>
-        <div className="myplan-info">
-          <h3>Plano {plan.name}</h3>
-          <p className="myplan-price">
-            {isVip ? 'Gratuito' : plan.priceLabel + '/mês'}
-          </p>
-          {plan.planActivatedAt && (
-            <p className="myplan-since">
-              <Calendar size={14} /> Ativo desde {new Date(user?.planActivatedAt || Date.now()).toLocaleDateString('pt-BR')}
-            </p>
-          )}
-        </div>
-      </div>
 
-      {/* Usage Card */}
-      <div className="myplan-usage card">
-        <h4><Users size={18} /> Uso de Alunos</h4>
-        <div className="usage-numbers">
-          <span className="usage-current">{usage.used}</span>
-          <span className="usage-separator">/</span>
-          <span className="usage-limit">{usage.limit === Infinity ? '∞' : usage.limit}</span>
-        </div>
-        <div className="usage-bar-bg">
-          <div className="usage-bar-fill" style={{ width: `${Math.min(usagePercent, 100)}%`, background: barColor }} />
-        </div>
-        <p className="usage-text">
-          {usage.limit === Infinity
-            ? 'Você tem alunos ilimitados!'
-            : usagePercent > 85
-              ? '⚠️ Próximo do limite! Considere fazer upgrade.'
-              : `${usage.limit - usage.used} vagas restantes`
-          }
-        </p>
-      </div>
+        {/* ── Plans Grid ─────────────────────────────────────── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '24px',
+          alignItems: 'stretch',
+        }}>
+          {PLANS.map((plan) => {
+            const isCurrent = currentPlanId === plan.id;
+            const isLoading = loading === plan.id;
+            const isHovered = hoveredPlan === plan.id;
+            const isDisabled = isLoading || isCurrent;
 
-      {/* Features */}
-      <div className="card" style={{ padding: '24px' }}>
-        <h4 style={{ marginBottom: '16px' }}>✨ Recursos inclusos no seu plano</h4>
-        <div className="myplan-features">
-          {plan.features.map((f, i) => (
-            <div key={i} className="myplan-feature">
-              <CheckCircle size={16} style={{ color, flexShrink: 0 }} />
-              <span>{f}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Upgrade Options */}
-      {!isVip && plan.id !== 'elite' && (
-        <div className="card" style={{ padding: '24px' }}>
-          <h4 style={{ marginBottom: '16px' }}><ArrowUpCircle size={18} /> Fazer Upgrade</h4>
-          <div className="upgrade-grid">
-            {plans.filter(p => p.price > plan.price).map(p => {
-              const UpIcon = planIcons[p.id];
-              const upColor = planColors[p.id];
-              return (
-                <div key={p.id} className="upgrade-card">
-                  <div className="upgrade-icon" style={{ background: `${upColor}15`, color: upColor }}>
-                    <UpIcon size={22} />
+            return (
+              <div
+                key={plan.id}
+                onMouseEnter={() => setHoveredPlan(plan.id)}
+                onMouseLeave={() => setHoveredPlan(null)}
+                style={{
+                  position: 'relative',
+                  borderRadius: '28px',
+                  padding: '1px',
+                  background: isCurrent
+                    ? 'linear-gradient(135deg, rgba(34,197,94,0.5), rgba(16,185,129,0.3))'
+                    : plan.isPopular
+                    ? 'linear-gradient(135deg, rgba(59,130,246,0.6), rgba(99,102,241,0.4))'
+                    : 'rgba(255,255,255,0.08)',
+                  transform: plan.isPopular ? 'scale(1.04)' : isHovered ? 'translateY(-6px)' : 'translateY(0)',
+                  transition: 'transform 0.4s cubic-bezier(.4,0,.2,1), box-shadow 0.4s cubic-bezier(.4,0,.2,1)',
+                  boxShadow: plan.isPopular
+                    ? '0 0 60px rgba(59,130,246,0.12), 0 24px 48px rgba(0,0,0,0.5)'
+                    : isHovered
+                    ? '0 24px 48px rgba(0,0,0,0.4)'
+                    : '0 8px 24px rgba(0,0,0,0.3)',
+                }}
+              >
+                {/* Popular badge */}
+                {plan.isPopular && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-16px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
+                    color: '#fff',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    padding: '5px 16px',
+                    borderRadius: '99px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: '0 4px 16px rgba(59,130,246,0.4)',
+                    zIndex: 10,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    <Sparkles size={9} />
+                    Recomendado
                   </div>
-                  <div className="upgrade-info">
-                    <h5>{p.name}</h5>
-                    <p>{p.priceLabel}/mês • {p.studentLimit === Infinity ? '∞' : p.studentLimit} alunos</p>
+                )}
+
+                {/* Current plan badge */}
+                {isCurrent && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-16px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'linear-gradient(135deg,#16a34a,#22c55e)',
+                    color: '#fff',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    padding: '5px 16px',
+                    borderRadius: '99px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: '0 4px 16px rgba(34,197,94,0.4)',
+                    zIndex: 10,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    <Check size={9} strokeWidth={3} />
+                    Plano Ativo
                   </div>
+                )}
+
+                {/* Inner card */}
+                <div style={{
+                  height: '100%',
+                  background: 'linear-gradient(160deg, rgba(25,25,25,0.98), rgba(15,15,15,0.99))',
+                  backdropFilter: 'blur(40px)',
+                  WebkitBackdropFilter: 'blur(40px)',
+                  borderRadius: '27px',
+                  padding: '32px 28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+
+                  {/* Ambient glow */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '-40px',
+                    right: '-40px',
+                    width: '180px',
+                    height: '180px',
+                    background: 'radial-gradient(circle, ' + plan.glowColor + ', transparent 70%)',
+                    pointerEvents: 'none',
+                    borderRadius: '50%',
+                  }} />
+
+                  {/* Plan header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '16px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid ' + plan.borderColor,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <PlanIcon planId={plan.id} color={plan.iconColor} />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#fff' }}>{plan.name}</h3>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: '#52525b', fontWeight: 500, marginTop: '2px' }}>{plan.description}</p>
+                    </div>
+                  </div>
+
+                  {/* Price */}
+                  <div style={{ marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#71717a', marginTop: '6px' }}>R$</span>
+                      <span style={{ fontSize: '3.2rem', fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                        {plan.price.split(',')[0]}
+                      </span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#a1a1aa', marginTop: '4px' }}>
+                        ,{plan.price.split(',')[1]}
+                      </span>
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: '#52525b', fontWeight: 600 }}>por mes — cancele quando quiser</p>
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', marginBottom: '20px' }} />
+
+                  {/* Features */}
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+                    {plan.features.map((feat, idx) => (
+                      <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '6px',
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid ' + plan.borderColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          marginTop: '1px',
+                        }}>
+                          <Check size={11} color={plan.iconColor} strokeWidth={3} />
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 500 }}>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA Button */}
                   <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => handleUpgrade(p.id)}
-                    disabled={loading !== null}
+                    disabled={isDisabled}
+                    onClick={() => handleSubscribe(plan)}
+                    onMouseEnter={(e) => {
+                      if (!isDisabled) e.currentTarget.style.background = plan.btnHoverGradient;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isDisabled) e.currentTarget.style.background = isCurrent ? 'rgba(34,197,94,0.1)' : plan.btnGradient;
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px 20px',
+                      borderRadius: '16px',
+                      border: isCurrent ? '1px solid rgba(34,197,94,0.3)' : 'none',
+                      background: isCurrent
+                        ? 'rgba(34,197,94,0.1)'
+                        : plan.btnGradient,
+                      color: isCurrent ? '#22c55e' : '#fff',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      cursor: isDisabled ? 'default' : 'pointer',
+                      opacity: isLoading ? 0.7 : 1,
+                      transition: 'all 0.25s ease',
+                      position: 'relative',
+                      zIndex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: isCurrent ? 'none' : '0 4px 20px rgba(0,0,0,0.3)',
+                    }}
                   >
-                    {loading === p.id ? 'Ativando...' : 'Upgrade'}
+                    {isLoading ? (
+                      <>
+                        <span style={{
+                          display: 'inline-block',
+                          width: '14px',
+                          height: '14px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: '#fff',
+                          borderRadius: '50%',
+                          animation: 'myplan-spin 0.6s linear infinite',
+                        }} />
+                        Processando...
+                      </>
+                    ) : isCurrent ? (
+                      <>
+                        <Check size={14} strokeWidth={3} />
+                        Plano Atual
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp size={14} />
+                        Fazer Upgrade
+                      </>
+                    )}
                   </button>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
-      )}
 
-      <style>{`
-        .myplan-current {
-          background: var(--bg-card);
-          border: 2px solid ${color}40;
-          border-radius: 20px;
-          padding: 32px;
-          display: flex;
-          align-items: center;
-          gap: 24px;
-          margin-bottom: 20px;
-          position: relative;
-          overflow: hidden;
-        }
-        .myplan-current::before {
-          content: '';
-          position: absolute;
-          top: -40px;
-          right: -40px;
-          width: 120px;
-          height: 120px;
-          background: ${color};
-          filter: blur(80px);
-          opacity: 0.15;
-        }
-        .vip-badge {
-          position: absolute;
-          top: 12px;
-          right: 12px;
-          background: linear-gradient(135deg, #F59E0B, #D97706);
-          color: white;
-          padding: 4px 14px;
-          border-radius: 20px;
-          font-size: 0.72rem;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .myplan-icon {
-          width: 72px;
-          height: 72px;
-          border-radius: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .myplan-info h3 {
-          font-size: 1.5rem;
-          font-weight: 800;
-        }
-        .myplan-price {
-          font-size: 1.1rem;
-          color: ${color};
-          font-weight: 600;
-          margin-top: 4px;
-        }
-        .myplan-since {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: var(--text-muted);
-          font-size: 0.82rem;
-          margin-top: 4px;
-        }
-        .myplan-usage {
-          padding: 24px;
-          margin-bottom: 20px;
-        }
-        .myplan-usage h4 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 16px;
-        }
-        .usage-numbers {
-          display: flex;
-          align-items: baseline;
-          gap: 4px;
-          margin-bottom: 12px;
-        }
-        .usage-current {
-          font-size: 2.5rem;
-          font-weight: 800;
-          color: ${barColor};
-        }
-        .usage-separator {
-          font-size: 1.5rem;
-          color: var(--text-muted);
-        }
-        .usage-limit {
-          font-size: 1.5rem;
-          color: var(--text-muted);
-        }
-        .usage-bar-bg {
-          width: 100%;
-          height: 10px;
-          background: rgba(255,255,255,0.05);
-          border-radius: 10px;
-          overflow: hidden;
-          margin-bottom: 8px;
-        }
-        .usage-bar-fill {
-          height: 100%;
-          border-radius: 10px;
-          transition: width 0.8s ease;
-        }
-        .usage-text {
-          font-size: 0.85rem;
-          color: var(--text-muted);
-        }
-        .myplan-features {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-        .myplan-feature {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 0.88rem;
-          color: var(--text-secondary);
-        }
-        .upgrade-grid {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .upgrade-card {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          padding: 16px;
-          background: rgba(255,255,255,0.02);
-          border-radius: var(--radius-md);
-          border: 1px solid var(--border);
-        }
-        .upgrade-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .upgrade-info {
-          flex: 1;
-        }
-        .upgrade-info h5 {
-          font-size: 0.95rem;
-          font-weight: 700;
-        }
-        .upgrade-info p {
-          font-size: 0.8rem;
-          color: var(--text-muted);
-        }
-        @media (max-width: 640px) {
-          .myplan-current { flex-direction: column; text-align: center; }
-          .myplan-features { grid-template-columns: 1fr; }
-        }
-      `}</style>
+        {/* ── Security footer ────────────────────────────────── */}
+        <div style={{
+          marginTop: '64px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '10px',
+          opacity: 0.4,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+            <ShieldCheck size={16} color="#22c55e" />
+            <span>Pagamento 100% seguro via Mercado Pago</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+            <Lock size={14} />
+            <span>Dados protegidos com criptografia SSL</span>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.65rem', letterSpacing: '0.15em', fontWeight: 700, textTransform: 'uppercase' }}>
+            PowerFit Academy — v4.0
+          </p>
+        </div>
+      </div>
+
+      {/* Keyframe for spinner — inline style tag, no backtick classname */}
+      <style dangerouslySetInnerHTML={{ __html: '@keyframes myplan-spin { to { transform: rotate(360deg); } }' }} />
     </div>
   );
 }

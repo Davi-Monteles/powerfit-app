@@ -1,56 +1,92 @@
-import { useState, useEffect } from 'react';
-import { Bot, Sparkles } from 'lucide-react';
+import { useMemo } from 'react';
+import { Bot, Sparkles, Lock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-export default function AIAssistantNotice({ student, workouts, evolution }) {
-  const [notice, setNotice] = useState(null);
+export default function AIAssistantNotice({ student, workouts, evolution, onClick }) {
+  const isVip = student?.isPremium === true;
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const targets = student?.targetMuscles || [];
+  const handleNoticeClick = (e) => {
+    if (!isVip) {
+      navigate('/upgrade');
+    } else {
+      if (onClick) onClick(e);
+    }
+  };
+
+  const notice = useMemo(() => {
+    const targets = student?.targetMuscles || student?.target_muscles || [];
     const goal = student?.objective || 'Hipertrofia';
 
-    let tips = [
+    const tips = [
       "Excelente evolução essa semana! Mantenha o ritmo constante.",
       "Identifiquei que você tem treinado bastante, não se esqueça do descanso vital!",
       `O seu foco selecionado é ${goal}. Lembre-se de manter sua dieta alinhada a esse objetivo para maximizar resultados.`
     ];
 
     if (targets.length > 0) {
-      const randomTarget = targets[Math.floor(Math.random() * targets.length)];
+      const targetIndex = Math.abs(String(student?.id || student?.email || '').length + workouts.length + evolution.length) % targets.length;
+      const randomTarget = targets[targetIndex];
       tips.push(`No seu Mapa Corporal, você selecionou ${randomTarget}. Lembre-se de intensificar o treino dessa área!`);
       tips.push(`Você destacou ${randomTarget} no seu Alvo 3D. Que tal priorizar os exercícios focados nessa região hoje?`);
     } else {
-      tips.push("Personalize seu Mapa Corporal 3D (no menu lateral) para receber dicas direcionadas aos seus músculos alvo!");
+      tips.push("Personalize seu Mapa Corporal 3D para receber dicas direcionadas!");
     }
 
-    setNotice(tips[Math.floor(Math.random() * tips.length)]);
-  }, [student, workouts, evolution]);
+    const key = `${student?.id || student?.email || ''}:${goal}:${targets.join(',')}:${workouts.length}:${evolution.length}`;
+    const hash = Array.from(key).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return tips[hash % tips.length];
+  }, [student?.id, student?.email, student?.objective, student?.targetMuscles, student?.target_muscles, workouts.length, evolution.length]);
 
   if (!notice) return null;
 
   return (
-    <div className="card animate-slide-up" style={{ 
-      padding: '16px 24px', 
-      marginBottom: '24px', 
-      background: 'linear-gradient(90deg, rgba(255,107,53,0.1) 0%, rgba(59,130,246,0.1) 100%)',
-      border: '1px solid rgba(255,107,53,0.3)',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      <div style={{ position: 'absolute', right: '-10px', top: '-20px', opacity: 0.05, transform: 'rotate(15deg)' }}>
-        <Bot size={140} />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', zIndex: 1 }}>
-        <div style={{ background: 'var(--gradient-primary)', padding: '12px', borderRadius: '50%', flexShrink: 0 }}>
-          <Sparkles size={24} color="white" />
+    <div 
+      onClick={handleNoticeClick}
+      className={`card animate-slide-up ${isVip ? 'cursor-pointer' : 'cursor-pointer'}`}
+      style={{ 
+        background: isVip 
+          ? 'linear-gradient(135deg, rgba(34, 211, 238, 0.1) 0%, rgba(34, 211, 238, 0.05) 100%)' 
+          : 'rgba(255, 255, 255, 0.05)', 
+        border: "1px solid " + (isVip ? 'rgba(34, 211, 238, 0.3)' : 'rgba(255, 255, 255, 0.1)'),
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '20px',
+        marginBottom: '24px',
+        filter: isVip ? 'none' : 'grayscale(1)',
+        opacity: isVip ? 1 : 0.7,
+        transition: 'all 0.3s ease'
+      }}
+    >
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ 
+          width: '48px', 
+          height: '48px', 
+          borderRadius: '12px', 
+          background: isVip ? 'linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%)' : '#4b5563',
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          boxShadow: isVip ? '0 4px 12px rgba(6, 182, 212, 0.2)' : 'none',
+          flexShrink: 0
+        }}>
+          {isVip ? <Sparkles color="white" size={24} /> : <Lock color="white" size={20} />}
         </div>
-        <div>
-          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            Visão da IA PowerFit <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>Premium</span>
-          </h4>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.4' }}>
-            {notice}
+        
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: isVip ? '#67e8f9' : 'var(--text-muted)' }}>
+              PowerFit AI {isVip && <span style={{ fontSize: '0.65rem', background: 'rgba(34, 211, 238, 0.2)', padding: '1px 6px', borderRadius: '8px', color: '#cffafe', marginLeft: '4px' }}>BETA</span>}
+            </h4>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.4', margin: 0 }}>
+            {isVip 
+              ? (notice || "Sua assistente pessoal está pronta para analisar seu treino e sugerir ajustes.")
+              : "Funcionalidade exclusiva para alunos VIP. Clique para assinar."}
           </p>
         </div>
+        
+        {isVip && <Bot size={24} style={{ opacity: 0.2, color: '#22d3ee' }} />}
       </div>
     </div>
   );

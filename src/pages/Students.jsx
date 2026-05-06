@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent } from '../lib/storage';
+import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent, saveNotification, forceSyncData } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { useToast, useAuth } from '../App';
-import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History } from 'lucide-react';
+import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History, Bell } from 'lucide-react';
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -16,16 +17,29 @@ export default function Students() {
   const addToast = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { revision } = useStorageSync('students');
 
   const emptyForm = { name: '', email: '', phone: '', birthDate: '', gender: 'Masculino', height: '', weight: '', objective: 'Hipertrofia', daysPerWeek: 3, shift: 'Manhã', address: '', medicalNotes: '' };
   const [form, setForm] = useState(emptyForm);
 
-  useEffect(() => {
+  const loadCachedData = () => {
     setStudents(getStudents());
     setWorkouts(getWorkouts());
-  }, []);
+  };
 
-  const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    loadCachedData();
+  }, [user, revision]);
+
+  useEffect(() => {
+    let active = true;
+    forceSyncData().finally(() => {
+      if (active) loadCachedData();
+    });
+    return () => { active = false; };
+  }, [user]);
+
+  const filtered = students.filter(s => (s.name || '').toLowerCase().includes((search || '').toLowerCase()) || (s.email || '').toLowerCase().includes((search || '').toLowerCase()));
 
   const openNew = () => { 
     if (!canAddStudent()) {
@@ -38,23 +52,31 @@ export default function Students() {
   };
   const openEdit = (student) => { setForm(student); setEditingStudent(student); setShowModal(true); };
   
-  const handleSave = (e) => {
+  const reloadStudents = () => {
+    setStudents(getStudents());
+  };
+  
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name) { addToast('Nome é obrigatório', 'error'); return; }
+    
     try {
-      saveStudent(form);
-      setStudents(getStudents());
+      const payload = { ...form, personalId: user?.id || form.personalId };
+      await saveStudent(payload);
+      
+      reloadStudents();
       setShowModal(false);
       addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
     } catch (err) {
-      addToast(err.message, 'error');
+      addToast(err.message || "Erro ao salvar aluno.", 'error');
+      console.error("🔥 UI SAVE ERROR:", err);
     }
   };
 
   const handleDelete = (id) => {
     if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
     deleteStudent(id);
-    setStudents(getStudents());
+    reloadStudents();
     addToast('Aluno excluído', 'info');
   };
 
@@ -62,7 +84,7 @@ export default function Students() {
   
   const handleAssign = (workoutId) => {
     assignWorkoutToStudent(workoutId, assigningStudent.id, assignDay);
-    setStudents(getStudents());
+    reloadStudents();
     setShowAssignModal(false);
     addToast(`Treino atribuído para ${assignDay}!`, 'success');
   };
@@ -70,6 +92,12 @@ export default function Students() {
   const handleWhatsAppChat = (phone) => {
     if (!phone) return addToast('Aluno sem telefone cadastrado', 'error');
     window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
+  };
+
+  const sendReminder = (student) => {
+    const message = "Você tem um novo lembrete de treino do seu Personal! Bora pra cima! 💪";
+    saveNotification(student.id || student.studentId, message);
+    addToast("Lembrete interno enviado com sucesso!", "success");
   };
 
   return (
@@ -117,6 +145,7 @@ export default function Students() {
                 <button className="btn btn-secondary btn-sm" onClick={() => openAssign(student)}><Dumbbell size={14} /> Atribuir Treino</button>
                 <button className="btn btn-outline btn-sm" onClick={() => navigate(`/history/${student.id}`)}><History size={14} /> Histórico</button>
                 <div style={{ flex: 1 }} />
+                <button className="btn btn-ghost btn-icon" onClick={() => sendReminder(student)} title="Enviar Lembrete" style={{ color: '#06b6d4' }}><Bell size={16} /></button>
                 <button className="btn btn-ghost btn-icon" onClick={() => handleWhatsAppChat(student.phone)} title="Falar no WhatsApp" style={{ color: '#25D366' }}><Phone size={16} /></button>
                 <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)} title="Editar"><Edit2 size={16} /></button>
                 <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id)} title="Excluir" style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>

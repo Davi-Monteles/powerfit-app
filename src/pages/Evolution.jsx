@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getStudents, getEvolutionByStudent, saveEvolutionEntry, deleteEvolutionEntry } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { useToast } from '../App';
 import { TrendingUp, Plus, X, Trash2, Calendar, Scale, Ruler } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -9,7 +10,7 @@ const metrics = [
   { key: 'bodyFat', label: 'Gordura (%)', color: '#3B82F6' },
   { key: 'chest', label: 'Peito (cm)', color: '#22C55E' },
   { key: 'waist', label: 'Cintura (cm)', color: '#F59E0B' },
-  { key: 'hip', label: 'Quadril (cm)', color: '#8B5CF6' },
+  { key: 'hip', label: 'Quadril (cm)', color: '#22d3ee' },
   { key: 'arm', label: 'Braço (cm)', color: '#EC4899' },
   { key: 'thigh', label: 'Coxa (cm)', color: '#06B6D4' },
 ];
@@ -35,6 +36,7 @@ export default function Evolution() {
   const [activeMetrics, setActiveMetrics] = useState(['weight', 'bodyFat']);
   const [showModal, setShowModal] = useState(false);
   const addToast = useToast();
+  const { revision } = useStorageSync('evolution');
 
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = { date: today, weight: '', bodyFat: '', chest: '', waist: '', hip: '', arm: '', thigh: '' };
@@ -46,14 +48,14 @@ export default function Evolution() {
     if (studentsList.length > 0) {
       setSelectedStudent(studentsList[0].id);
     }
-  }, []);
+  }, [revision]);
 
   useEffect(() => {
     if (selectedStudent) {
       const data = getEvolutionByStudent(selectedStudent);
       setEvolutionData(data);
     }
-  }, [selectedStudent]);
+  }, [selectedStudent, revision]);
 
   const toggleMetric = (key) => {
     setActiveMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
@@ -148,7 +150,7 @@ export default function Evolution() {
                 </div>
               </div>
               <div className="stat-card">
-                <div className="stat-icon purple"><Calendar size={24} color="white" /></div>
+                <div className="stat-icon cyan"><Calendar size={24} color="white" /></div>
                 <div className="stat-info">
                   <h4>{evolutionData.length}</h4>
                   <p>Avaliações Registradas</p>

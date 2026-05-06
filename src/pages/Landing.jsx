@@ -56,7 +56,7 @@ export default function Landing() {
                   </div>
                   <div className="hero-button-wrapper">
                     <Link to="/auth?type=aluno">
-                      <button className="btn btn-outline btn-lg">Quero Treinar Sozinho</button>
+                      <button className="btn btn-outline btn-lg">Sou Aluno</button>
                     </Link>
                     <span className="button-hint">IA + Atlas 3D + Treinos</span>
                   </div>

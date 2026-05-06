@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Sparkles, User, Dumbbell, Activity, Flame } from 'lucide-react';
+import { Bot, X, Send, Sparkles, User } from 'lucide-react';
 import { generateSmartResponse } from '../lib/ai-engine';
 
 export default function AIChat({ student, isOpen, onClose }) {
@@ -14,22 +14,25 @@ export default function AIChat({ student, isOpen, onClose }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, typing]);
 
-  const handleSend = (e) => {
-    e.preventDefault();
+  const handleSend = async (e) => {
+    if (e) e.preventDefault();
     if (!input.trim() || typing) return;
 
     const userMsg = input.trim();
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    const currentMessages = [...messages, { role: 'user', content: userMsg }];
+    setMessages(currentMessages);
     setInput('');
     setTyping(true);
 
-    // Simulate AI "thinking" with realistic delay
-    const thinkTime = 800 + Math.random() * 1200;
-    setTimeout(() => {
-      const response = generateSmartResponse(userMsg, student);
+    try {
+      const response = await generateSmartResponse(userMsg, student, currentMessages);
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Ops, minha conexão neural falhou um instante. Tente mandar a mensagem novamente! ⚡' }]);
+    } finally {
       setTyping(false);
-    }, thinkTime);
+    }
   };
 
   const quickActions = [
@@ -78,26 +81,28 @@ export default function AIChat({ student, isOpen, onClose }) {
           )}
         </div>
 
-        {/* Quick actions - show only if few messages */}
         {messages.length <= 2 && !typing && (
           <div className="ai-quick-actions">
             {quickActions.map((action, i) => (
               <button
                 key={i}
                 className="ai-quick-btn"
-                onClick={() => {
+                onClick={async () => {
                   setInput(action.msg);
-                  setTimeout(() => {
-                    const fakeEvent = { preventDefault: () => {} };
-                    setMessages(prev => [...prev, { role: 'user', content: action.msg }]);
+                  setTimeout(async () => {
+                    const msg = action.msg;
+                    const currentMessages = [...messages, { role: 'user', content: msg }];
+                    setMessages(currentMessages);
                     setTyping(true);
-                    const thinkTime = 800 + Math.random() * 1200;
-                    setTimeout(() => {
-                      const response = generateSmartResponse(action.msg, student);
+                    try {
+                      const response = await generateSmartResponse(msg, student, currentMessages);
                       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+                    } catch(e) {
+                      setMessages(prev => [...prev, { role: 'assistant', content: 'Ops, falha na conexão.' }]);
+                    } finally {
                       setTyping(false);
-                    }, thinkTime);
-                    setInput('');
+                      setInput('');
+                    }
                   }, 50);
                 }}
               >
@@ -125,7 +130,7 @@ export default function AIChat({ student, isOpen, onClose }) {
             inset: 0;
             background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(4px);
-            z-index: 2000;
+            z-index: 1000;
             display: flex;
             align-items: flex-end;
             justify-content: flex-end;

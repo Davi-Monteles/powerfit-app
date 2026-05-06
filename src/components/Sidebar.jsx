@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth, useTheme } from '../App';
-import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target, Crown } from 'lucide-react';
+import { useAuth, useTheme, useToast } from '../App';
+import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target, Crown, Lock, DownloadCloud } from 'lucide-react';
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
@@ -10,6 +11,7 @@ export default function Sidebar({ open, onClose }) {
   const isStudent = user?.type === 'aluno';
   const isMaster = user?.type === 'master';
   const isPersonal = user?.type === 'personal';
+  const addToast = useToast();
 
   const personalNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -27,15 +29,44 @@ export default function Sidebar({ open, onClose }) {
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
+  const isVip = user?.isPremium === true;
+
   const studentNavItems = [
     { path: '/aluno', label: 'Meu Painel', icon: LayoutDashboard },
-    { path: '/body-targets', label: 'Alvo 3D', icon: Target },
+    { path: '/workouts', label: 'Meus Treinos', icon: Dumbbell },
+    { path: '/schedule', label: 'Agenda', icon: CalendarDays },
+    { path: '/evolution', label: 'Evolução', icon: TrendingUp },
+    { path: '/photos', label: 'Fotos', icon: Camera },
+    ...(isVip ? [
+      { path: '/ai-chat', label: 'Treinador IA', icon: Zap },
+      { path: '/body-targets', label: 'Alvos Corporais', icon: Target },
+    ] : []),
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
   const navItems = isMaster ? masterNavItems : isStudent ? studentNavItems : personalNavItems;
 
   const handleLogout = () => { logout(); navigate('/'); };
+
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
   return (
     <>
@@ -50,20 +81,27 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <NavLink key={item.path} to={item.path}
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={onClose}>
-              <item.icon size={20} /><span>{item.label}</span>
-            </NavLink>
-          ))}
+          {navItems.map(item => {
+            if (item.restricted) {
+              return (
+                <div key={item.label} className="sidebar-link disabled" title="Apenas para usuários VIP" onClick={() => { navigate('/upgrade'); addToast('🔒 Recurso VIP', 'error'); onClose(); }} style={{ cursor: 'pointer', pointerEvents: 'auto' }}>
+                  <item.icon size={20} />
+                  <span>{item.label}</span>
+                  <Lock size={14} style={{ marginLeft: 'auto', opacity: 0.6 }} />
+                </div>
+              );
+            }
+            return (
+              <NavLink key={item.path || item.label} to={item.path}
+                className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                onClick={onClose}>
+                <item.icon size={20} /><span>{item.label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="btn btn-ghost sidebar-theme-toggle" onClick={toggleTheme} style={{ width: '100%', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
-          </button>
           <div className="sidebar-user">
             <div className="sidebar-avatar">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
             <div className="sidebar-user-info">
@@ -71,6 +109,22 @@ export default function Sidebar({ open, onClose }) {
               <p className="sidebar-user-role">{isMaster ? 'Administrador Master' : isStudent ? 'Aluno' : 'Personal Trainer'}</p>
             </div>
           </div>
+
+          {installPrompt && (
+            <button
+              className="btn btn-primary"
+              onClick={handleInstallClick}
+              style={{ width: '100%', justifyContent: 'center', gap: '8px', marginBottom: '8px', padding: '12px', background: 'var(--gradient-primary)' }}
+            >
+              <DownloadCloud size={18} /> Instalar App
+            </button>
+          )}
+
+          <button className="btn btn-ghost sidebar-theme-toggle" onClick={toggleTheme} style={{ width: '100%', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+          </button>
+
           <button className="btn btn-ghost sidebar-logout" onClick={handleLogout}>
             <LogOut size={18} /><span>Sair</span>
           </button>
@@ -78,8 +132,8 @@ export default function Sidebar({ open, onClose }) {
       </aside>
 
       <style>{`
-        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; }
-        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 999; transition: transform 0.3s ease; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 998; }
+        .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: rgba(var(--bg-secondary-rgb, 20,20,28), 0.85); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 999; transition: transform 0.3s ease; }
         .sidebar-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
         .sidebar-logo { display: flex; align-items: center; gap: 10px; }
         .logo-icon { width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--gradient-primary); display: flex; align-items: center; justify-content: center; color: white; }
@@ -89,6 +143,8 @@ export default function Sidebar({ open, onClose }) {
         .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-radius: var(--radius-md); color: var(--text-secondary); font-size: 0.88rem; font-weight: 500; transition: all var(--transition-fast); }
         .sidebar-link:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
         .sidebar-link.active { background: var(--gradient-primary); color: white; box-shadow: var(--shadow-glow-orange); }
+        .sidebar-link.disabled { opacity: 0.5; }
+        .sidebar-link.disabled:hover { background: rgba(34, 211, 238, 0.08); }
         .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); }
         .sidebar-user { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
         .sidebar-avatar { width: 38px; height: 38px; border-radius: var(--radius-full); background: var(--gradient-secondary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem; color: white; flex-shrink: 0; }
