@@ -97,13 +97,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div className="dashboard-main-grid">
         {/* Quick Actions */}
-        <div className="card" style={{ padding: '24px' }}>
+        <div className="card" style={{ padding: '24px', minWidth: 0 }}>
           <h3 style={{ fontSize: '1.1rem', marginBottom: '16px' }}>⚡ Ações Rápidas</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className="dashboard-actions-grid">
             {quickActions.map(action => (
-              <button key={action.label} className="btn btn-outline" style={{ justifyContent: 'flex-start', gap: '10px', padding: '12px 14px' }}
+              <button key={action.label} className="btn btn-outline dashboard-action-btn" style={{ justifyContent: 'flex-start', gap: '10px', padding: '12px 14px' }}
                 onClick={() => navigate(action.path)}>
                 <action.icon size={18} style={{ color: 'var(--primary)' }} />
                 <span style={{ fontSize: '0.85rem' }}>{action.label}</span>
@@ -113,7 +113,7 @@ export default function Dashboard() {
         </div>
 
         {/* Today's Schedule */}
-        <div className="card" style={{ padding: '24px' }}>
+        <div className="card" style={{ padding: '24px', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ fontSize: '1.1rem' }}>📅 Agenda de Hoje</h3>
             <button className="btn btn-ghost btn-sm" onClick={() => navigate('/schedule')}>Ver tudo <ArrowRight size={14} /></button>
@@ -151,8 +151,38 @@ export default function Dashboard() {
       </div>
 
       <style>{`
+        .dashboard-main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 20px;
+          max-width: 100%;
+        }
+
+        .dashboard-actions-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .dashboard-action-btn {
+          width: 100%;
+          min-width: 0;
+          overflow: visible;
+          white-space: normal;
+          line-height: 1.25;
+        }
+
+        .dashboard-action-btn span {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
         @media (max-width: 768px) {
-          div[style*="gridTemplateColumns: '1fr 1fr'"] { grid-template-columns: 1fr !important; }
+          .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        @media (max-width: 360px) {
+          .dashboard-actions-grid { grid-template-columns: minmax(0, 1fr); }
         }
       `}</style>
     </div>

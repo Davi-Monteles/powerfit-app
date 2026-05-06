@@ -43,6 +43,9 @@ const KEYS = {
   MERCADO_PAGO_TOKEN: 'powerfit_mp_token',
 };
 
+const STUDENT_AI_SOURCE = 'student_ai';
+const STUDENT_AI_NOTE_MARKER = 'source:student_ai';
+
 // ========== GENERIC HELPERS ==========
 function getItem(key) {
   try {
@@ -112,6 +115,7 @@ function normalizeWorkoutRecord(workout = {}, fallbackPersonalId = null) {
   const normalizedStudentId = workout.studentId || workout.student_id || null;
   const normalizedPersonalId = workout.personalId || workout.personal_id || fallbackPersonalId || null;
   const normalizedStudentEmail = workout.studentEmail || workout.student_email || null;
+  const aiGenerated = workout.aiGenerated === true || workout.ai_generated === true || workout.isAI === true || workout.is_ai === true;
 
   return {
     ...workout,
@@ -121,7 +125,56 @@ function normalizeWorkoutRecord(workout = {}, fallbackPersonalId = null) {
     personal_id: normalizedPersonalId,
     studentEmail: normalizedStudentEmail,
     student_email: normalizedStudentEmail,
+    isAI: workout.isAI === true || workout.is_ai === true,
+    aiGenerated,
+    source: workout.source || workout.generatedBy || workout.generated_by || null,
+    createdBy: workout.createdBy || workout.created_by || null,
+    generatedBy: workout.generatedBy || workout.generated_by || null,
+    assignedTo: workout.assignedTo || workout.assigned_to || null,
+    assigned_to: workout.assignedTo || workout.assigned_to || null,
   };
+}
+
+export function isStudentAIWorkout(workout = {}) {
+  if (!workout || typeof workout !== 'object') return false;
+
+  const source = String(workout.source || workout.generatedBy || workout.generated_by || '').toLowerCase();
+  const createdBy = String(workout.createdBy || workout.created_by || '').toLowerCase();
+  const notes = String(workout.notes || '').toLowerCase();
+  const name = String(workout.name || workout.title || '').toLowerCase();
+
+  return (
+    workout.aiGenerated === true ||
+    workout.ai_generated === true ||
+    workout.isAI === true ||
+    workout.is_ai === true ||
+    source === STUDENT_AI_SOURCE ||
+    createdBy === STUDENT_AI_SOURCE ||
+    notes.includes(STUDENT_AI_NOTE_MARKER) ||
+    name.includes('treino especial da ia') ||
+    name.includes('ia (alvo 3d)')
+  );
+}
+
+function isStudentAIScheduleEvent(event = {}) {
+  if (!event || typeof event !== 'object') return false;
+
+  const source = String(event.source || event.generatedBy || event.generated_by || '').toLowerCase();
+  const createdBy = String(event.createdBy || event.created_by || '').toLowerCase();
+  const notes = String(event.notes || '').toLowerCase();
+  const title = String(event.title || event.tittle || event.name || '').toLowerCase();
+
+  return (
+    event.aiGenerated === true ||
+    event.ai_generated === true ||
+    event.isAI === true ||
+    event.is_ai === true ||
+    source === STUDENT_AI_SOURCE ||
+    createdBy === STUDENT_AI_SOURCE ||
+    notes.includes(STUDENT_AI_NOTE_MARKER) ||
+    title.includes('treino especial da ia') ||
+    title.includes('ia (alvo 3d)')
+  );
 }
 
 function buildWorkoutSupabasePayload(workout = {}) {
@@ -134,6 +187,8 @@ function buildWorkoutSupabasePayload(workout = {}) {
     category: normalized.category ?? null,
     exercises: Array.isArray(normalized.exercises) ? normalized.exercises : [],
     personalId: normalized.personalId || null,
+    notes: normalized.notes || null,
+    assigned_to: normalized.assigned_to || normalized.assignedTo || null,
     createdAt: normalized.createdAt || null,
     updatedAt: normalized.updatedAt || null,
   };
@@ -1017,7 +1072,10 @@ export function getWorkouts() {
   const currentUser = getCurrentUser();
   if (currentUser?.type === "master") return allWorkouts;
   if (currentUser?.type === "personal") {
-    return allWorkouts.filter(w => w.personalId === currentUser.id || w.personal_id === currentUser.id);
+    return allWorkouts.filter(w =>
+      (w.personalId === currentUser.id || w.personal_id === currentUser.id) &&
+      !isStudentAIWorkout(w)
+    );
   }
   if (currentUser?.type === "aluno") {
     const studentId = currentUser.id || currentUser.studentId || currentUser.student_id;
@@ -1233,8 +1291,19 @@ export function deleteEvolutionEntry(id) {
 }
 
 // ========== SCHEDULE ==========
-export function getSchedule() {
+function getRawSchedule() {
   return getItem(KEYS.SCHEDULE) || [];
+}
+
+export function getSchedule() {
+  const schedule = getRawSchedule();
+  const currentUser = getCurrentUser();
+
+  if (currentUser?.type === 'personal') {
+    return schedule.filter(event => !isStudentAIScheduleEvent(event));
+  }
+
+  return schedule;
 }
 
 export function getScheduleByDate(date) {
@@ -1242,7 +1311,7 @@ export function getScheduleByDate(date) {
 }
 
 export async function saveScheduleEvent(event) {
-  const schedule = getSchedule();
+  const schedule = getRawSchedule();
   let record;
   if (event.id) {
     const idx = schedule.findIndex(s => s.id === event.id);
@@ -1277,7 +1346,7 @@ export async function deleteScheduleEvent(id) {
     await safeSupabase(() => supabase.from('schedule').delete().eq('id', id));
   }
 
-  const schedule = getSchedule().filter(s => s.id !== id);
+  const schedule = getRawSchedule().filter(s => s.id !== id);
   setItem(KEYS.SCHEDULE, schedule);
   notifyDataChange('schedule');
   return schedule;

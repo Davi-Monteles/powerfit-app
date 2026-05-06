@@ -140,6 +140,20 @@ function normalizeAIDay(day) {
   return days[normalized] || 'Geral';
 }
 
+function formatAIDayForMessage(day) {
+  const days = {
+    Segunda: 'segunda-feira',
+    Terça: 'terça-feira',
+    Quarta: 'quarta-feira',
+    Quinta: 'quinta-feira',
+    Sexta: 'sexta-feira',
+    Sábado: 'sábado',
+    Domingo: 'domingo',
+  };
+
+  return days[day] || String(day || '').toLowerCase();
+}
+
 function formatKnownValue(value, suffix = '') {
   if (value === null || value === undefined || value === '') return 'não informado';
   return `${value}${suffix}`;
@@ -298,14 +312,22 @@ async function assignAIGeneratedWorkout(student, targets) {
     }
     
     const now = new Date().toISOString();
+    const studentId = student.id || student.studentId || student.student_id || null;
     const newW = {
       id: crypto.randomUUID(),
       personalId: student.personalId || student.personal_id || null,
+      studentId,
+      assignedTo: studentId,
       name: `Treino Especial da IA ${isFullBody ? '(Full-Body)' : '(Alvo 3D)'}`,
       description: isFullBody ? "Misto englobando o corpo todo." : `Foco em: ${targets.join(', ')}`,
       category: "Hipertrofia & Definição",
       exercises: exercises,
       isAI: true,
+      aiGenerated: true,
+      source: 'student_ai',
+      createdBy: 'student_ai',
+      generatedBy: 'student_ai',
+      notes: 'source:student_ai',
       createdAt: now,
       updatedAt: now,
     };
@@ -320,6 +342,8 @@ async function assignAIGeneratedWorkout(student, targets) {
         description: newW.description,
         category: newW.category,
         exercises: newW.exercises,
+        notes: newW.notes,
+        assigned_to: newW.assignedTo,
         createdAt: newW.createdAt,
         updatedAt: newW.updatedAt,
       });
@@ -400,7 +424,15 @@ export async function generateSmartResponse(userMessage, student, chatHistory = 
       const allWs = allWStr ? JSON.parse(allWStr) : [];
       const myWorks = allWs.filter(w =>
         sData.workoutIds.includes(w.id) &&
-        (w.isAI === true || String(w.name || '').includes('Treino Especial da IA'))
+        (
+          w.isAI === true ||
+          w.aiGenerated === true ||
+          w.source === 'student_ai' ||
+          w.createdBy === 'student_ai' ||
+          w.generatedBy === 'student_ai' ||
+          String(w.notes || '').includes('source:student_ai') ||
+          String(w.name || '').includes('Treino Especial da IA')
+        )
       );
       if (myWorks.length > 0) lastAiId = myWorks[myWorks.length - 1].id;
     }
@@ -409,15 +441,19 @@ export async function generateSmartResponse(userMessage, student, chatHistory = 
       const mod = await import('./storage');
       await mod.assignWorkoutToStudent(lastAiId, student.id || student.studentId, capDay, true);
       window.dispatchEvent(new CustomEvent('powerfit:weekly-schedule-updated'));
-      return `Feito! Agendei seu treino de IA para **${capDay}**. 📅
-Ele foi salvo na nuvem e vai aparecer no seu painel mesmo após recarregar a página. Mais alguma dúvida?`;
+      return `Feito! Seu treino ficou agendado para ${formatAIDayForMessage(capDay)} e já vai aparecer em "Meus Treinos".
+
+Mais alguma dúvida?`;
     }
   }
 
   // Geração / Trigger de Treino
   if (lower.match(/(me passe|me de|me monte|monte.*treino|crie.*treino|gere.*treino|montar.*treino|fazer.*treino|quero um treino|me d[áa] um treino)/)) {
     await assignAIGeneratedWorkout(student, translatedTargets);
-    return `Eu acabei de gerar um **Treino Especializado** para você, ${name}!\n\nEle foi elaborado exatamente com as regras do Alvo 3D. Foi injetado na sua aba "Meus Treinos".\n\n🤖 **Para qual dia da semana você gostaria de agendar este treino?** (Escute, basta digitar o dia, ex: "Segunda").`;
+    return `Criei um treino personalizado para você.
+
+Agora me diga em qual dia da semana você quer agendar esse treino.
+Exemplo: segunda, quarta ou sexta.`;
   }
 
   // Contexto muscular com instrução forçada
@@ -460,7 +496,7 @@ Regras obrigatórias:
 5. Para nutrição básica e dicas gerais de dieta, dê orientação geral, sem montar plano alimentar clínico, sem prescrever dietas restritivas e sem calcular protocolo individual fechado.
 6. Para plano nutricional específico, condição médica, dor, lesão, diagnóstico, reabilitação ou dosagem de suplemento/remédio, recomende consultar um profissional qualificado, como nutricionista, médico ou fisioterapeuta. Não informe doses numéricas ou protocolos exatos para suplementos/remédios.
 7. Seja objetivo: o usuário está num chat mobile. Use parágrafos curtos e, quando útil, bullets simples.
-8. Se o usuário pedir para montar um treino e não usou as palavras mágicas da automação da plataforma ("monte um treino"), encoraje-o a solicitar claramente esses termos para que o sistema injete o treino na aba "Meus Treinos".
+8. Se o usuário pedir para montar um treino e não usou as palavras "monte um treino", encoraje-o a solicitar claramente esses termos para que o treino apareça em "Meus Treinos".
 9. Quando perguntarem sobre atlas, alvo 3D ou focos corporais, use os focos corporais do contexto.
 10. DIRETIVA DE NEGATIVIDADE ESTRITA: VOCÊ NÃO PODE GERAR TREINOS FULL BODY quando houver músculos selecionados no Alvo 3D. Se houver músculos selecionados, foque APENAS neles.
 `;

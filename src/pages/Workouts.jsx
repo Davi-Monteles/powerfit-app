@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData } from '../lib/storage';
+import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData, isStudentAIWorkout } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { generateWorkoutPDF } from '../lib/pdf';
-import { useToast } from '../App';
+import { useAuth, useToast } from '../App';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
 
 const exerciseCategories = ['Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps', 'Perna', 'Glúteo', 'Abdômen', 'Cardio', 'Funcional'];
@@ -15,6 +15,7 @@ export default function Workouts() {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const { user } = useAuth();
   const addToast = useToast();
   const { revision } = useStorageSync('workouts');
 
@@ -22,14 +23,21 @@ export default function Workouts() {
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
   const [form, setForm] = useState(emptyForm);
 
+  const getVisibleWorkouts = () => {
+    const allWorkouts = getWorkouts();
+    return user?.type === 'personal'
+      ? allWorkouts.filter(workout => !isStudentAIWorkout(workout))
+      : allWorkouts;
+  };
+
   const loadCachedData = () => {
-    setWorkouts(getWorkouts());
+    setWorkouts(getVisibleWorkouts());
     setStudents(getStudents());
   };
 
   useEffect(() => {
     loadCachedData();
-  }, [revision]);
+  }, [revision, user?.id, user?.type]);
 
   useEffect(() => {
     let active = true;
@@ -37,9 +45,9 @@ export default function Workouts() {
       if (active) loadCachedData();
     });
     return () => { active = false; };
-  }, []);
+  }, [user?.id, user?.type]);
 
-  const filtered = workouts.filter(w => w.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = workouts.filter(w => (w.name || '').toLowerCase().includes(search.toLowerCase()));
 
   const openNew = () => { setForm(emptyForm); setEditingWorkout(null); setShowModal(true); };
   const openEdit = (workout) => { setForm({ ...workout }); setEditingWorkout(workout); setShowModal(true); };
@@ -50,7 +58,7 @@ export default function Workouts() {
     if (form.exercises.some(ex => !ex.name)) { addToast('Preencha o nome de todos os exercícios', 'error'); return; }
     await saveWorkout(form);
     await forceSyncData();
-    setWorkouts(getWorkouts());
+    setWorkouts(getVisibleWorkouts());
     setShowModal(false);
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
@@ -59,7 +67,7 @@ export default function Workouts() {
     if (!confirm('Tem certeza que deseja excluir este treino?')) return;
     await deleteWorkout(id);
     await forceSyncData();
-    setWorkouts(getWorkouts());
+    setWorkouts(getVisibleWorkouts());
     addToast('Treino excluído', 'info');
   };
 

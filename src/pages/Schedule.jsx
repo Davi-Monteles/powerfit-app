@@ -84,9 +84,9 @@ export default function Schedule() {
         <button className="btn btn-primary" onClick={() => openNew(null)}><Plus size={18} /> Novo Evento</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedDate ? '1fr 320px' : '1fr', gap: '20px' }}>
+      <div className={`schedule-layout ${selectedDate ? 'has-selected-day' : ''}`}>
         {/* Calendar Grid */}
-        <div className="card" style={{ padding: '20px' }}>
+        <div className="card" style={{ padding: '20px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
             <button className="btn btn-ghost btn-icon" onClick={prevMonth}><ChevronLeft size={20} /></button>
             <h3 style={{ fontSize: '1.1rem' }}>{MONTHS[month]} {year}</h3>
@@ -117,7 +117,7 @@ export default function Schedule() {
 
         {/* Day Detail */}
         {selectedDate && (
-          <div className="card animate-slide-up" style={{ padding: '20px', alignSelf: 'start' }}>
+          <div className="card animate-slide-up schedule-day-detail" style={{ padding: '20px', alignSelf: 'start' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h4>{new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</h4>
               <button className="btn btn-ghost btn-icon" onClick={() => setSelectedDate(null)}><X size={16} /></button>
@@ -129,9 +129,9 @@ export default function Schedule() {
                 {selectedEvents.map(ev => (
                   <div key={ev.id} style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.03)', borderLeft: `3px solid ${EVENT_COLORS[ev.type] || EVENT_COLORS.outro}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <strong style={{ fontSize: '0.85rem' }}>{ev.title}</strong>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><Clock size={12} /> {ev.time}</span>
                           {ev.studentId && <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><User size={12} /> {students.find(s => s.id === ev.studentId)?.name || ''}</span>}
                         </div>
@@ -185,6 +185,29 @@ export default function Schedule() {
       )}
 
       <style>{`
+        .schedule-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 20px;
+          max-width: 100%;
+        }
+
+        .schedule-layout.has-selected-day {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+        }
+
+        .schedule-day-detail {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .schedule-day-detail strong,
+        .schedule-day-detail p,
+        .schedule-day-detail span {
+          overflow-wrap: anywhere;
+        }
+
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
         .cal-weekday { text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); padding: 8px 0; text-transform: uppercase; }
         .cal-day { min-height: 70px; padding: 6px; border-radius: var(--radius-sm); cursor: pointer; transition: all var(--transition-fast); border: 1px solid transparent; display: flex; flex-direction: column; align-items: center; }
@@ -198,8 +221,8 @@ export default function Schedule() {
         .cal-dots { display: flex; gap: 3px; margin-top: 4px; }
         .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
         @media (max-width: 768px) {
+          .schedule-layout.has-selected-day { grid-template-columns: minmax(0, 1fr); }
           .cal-day { min-height: 48px; }
-          div[style*="gridTemplateColumns: selectedDate"] { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

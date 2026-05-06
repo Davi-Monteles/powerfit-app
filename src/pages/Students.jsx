@@ -40,6 +40,12 @@ export default function Students() {
   }, [user]);
 
   const filtered = students.filter(s => (s.name || '').toLowerCase().includes((search || '').toLowerCase()) || (s.email || '').toLowerCase().includes((search || '').toLowerCase()));
+  const officialWorkoutIds = new Set(workouts.map(w => w.id));
+  const getOfficialWorkoutCount = (student) => (
+    Array.isArray(student.workoutIds)
+      ? student.workoutIds.filter(id => officialWorkoutIds.has(id)).length
+      : 0
+  );
 
   const openNew = () => { 
     if (!canAddStudent()) {
@@ -139,7 +145,7 @@ export default function Students() {
                 {student.phone && <div className="student-detail"><Phone size={14} /> {student.phone}</div>}
                 {student.birthDate && <div className="student-detail"><Calendar size={14} /> {new Date(student.birthDate).toLocaleDateString('pt-BR')}</div>}
                 {student.objective && <div className="student-detail"><Target size={14} /> {student.objective}</div>}
-                <div className="student-detail"><Dumbbell size={14} /> {student.workoutIds?.length || 0} treino(s)</div>
+                <div className="student-detail"><Dumbbell size={14} /> {getOfficialWorkoutCount(student)} treino(s)</div>
               </div>
               <div className="student-actions">
                 <button className="btn btn-secondary btn-sm" onClick={() => openAssign(student)}><Dumbbell size={14} /> Atribuir Treino</button>
