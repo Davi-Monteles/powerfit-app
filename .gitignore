@@ -15,6 +15,18 @@ dist
 dist-ssr
 *.local
 
+# Local generated artifacts
+test-results/
+.playwright-mcp/
+output/
+.tmp/
+.cache/
+
+# Local visual evidence screenshots
+powerfit-*.png
+landing-*.png
+kimi-powerfit-reference-*.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
