@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-ssr
+.tmp
+test-results
+output
+docs
+*.log
+*.local
