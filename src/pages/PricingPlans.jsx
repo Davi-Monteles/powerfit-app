@@ -1,26 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, useToast } from '../App';
-import { getPlans, setUserPlan, getUserPlan } from '../lib/storage';
-import { Zap, CheckCircle, Crown, Shield, Star, Rocket, ArrowRight, User, GraduationCap } from 'lucide-react';
+import { useAuth, useToast } from '../lib/app-context';
+import { getPlans, setUserPlan, getUserPlan, isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
+import { Zap, CheckCircle, Crown, Shield, Star, ArrowRight, User, GraduationCap } from 'lucide-react';
 
 export default function PricingPlans() {
-  const { user, login } = useAuth();
+  const { user: authUser, login } = useAuth();
+  const user = authUser?.type === 'aluno' ? resolveStudentProfileFromCache(authUser) : authUser;
   const navigate = useNavigate();
   const addToast = useToast();
   const [loading, setLoading] = useState(null);
-  const [activeType, setActiveType] = useState(user?.type || 'personal');
+  const [selectedType, setSelectedType] = useState(user?.type || 'personal');
+  const activeType = user?.type || selectedType;
   
   const plans = getPlans(activeType);
   const currentPlan = getUserPlan();
-  const isVip = user?.type === 'aluno' && user?.isPremium === true;
+  const isVip = user?.type === 'aluno' && isStudentPremium(user);
 
-  useEffect(() => {
-    if (user?.type) setActiveType(user.type);
-  }, [user]);
-
-  const planIcons = [Zap, Star, Crown, Rocket];
-  const planColors = ['#3B82F6', '#FF6B35', '#F59E0B', '#22d3ee'];
+  const planIcons = [Zap, Star, Crown];
+  const planColors = ['#3B82F6', '#FF6B35', '#F59E0B'];
 
   const handleSelectPlan = (planId) => {
     if (!user) {
@@ -63,14 +61,14 @@ export default function PricingPlans() {
             <div className="type-toggle">
               <button 
                 className={`toggle-btn ${activeType === 'personal' ? 'active' : ''}`}
-                onClick={() => setActiveType('personal')}
+                onClick={() => setSelectedType('personal')}
               >
                 <GraduationCap size={18} />
                 Sou Personal
               </button>
               <button 
                 className={`toggle-btn ${activeType === 'aluno' ? 'active' : ''}`}
-                onClick={() => setActiveType('aluno')}
+                onClick={() => setSelectedType('aluno')}
               >
                 <User size={18} />
                 Sou Aluno
@@ -85,6 +83,7 @@ export default function PricingPlans() {
             const color = planColors[i] || '#3B82F6';
             const isCurrent = currentPlan?.id === plan.id;
             const isPopular = plan.popular;
+            const priceDisplay = plan.priceDisplay || Number(plan.price || 0).toFixed(2).replace('.', ',');
 
             return (
               <div key={plan.id} className={`plan-card ${isPopular ? 'plan-popular' : ''} ${isCurrent ? 'plan-current' : ''}`}>
@@ -100,8 +99,8 @@ export default function PricingPlans() {
                 <h3 className="plan-name">{plan.name}</h3>
                 <div className="plan-price">
                   <span className="plan-currency">R$</span>
-                  <span className="plan-amount">{plan.price.toString().split('.')[0]}</span>
-                  <span className="plan-decimal">,{plan.price.toString().split('.')[1] || '00'}</span>
+                  <span className="plan-amount">{priceDisplay.split(',')[0]}</span>
+                  <span className="plan-decimal">,{priceDisplay.split(',')[1] || '00'}</span>
                   <span className="plan-period">/mês</span>
                 </div>
                 
@@ -258,7 +257,7 @@ export default function PricingPlans() {
 
         .plans-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 20px;
           margin-bottom: 32px;
         }

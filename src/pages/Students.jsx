@@ -1,51 +1,48 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent, saveNotification, forceSyncData } from '../lib/storage';
+import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent, saveNotification, forceSyncData, hasActiveWorkoutsForStudent } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { useToast, useAuth } from '../App';
+import { useToast, useAuth } from '../lib/app-context';
 import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History, Bell } from 'lucide-react';
 
 export default function Students() {
-  const [students, setStudents] = useState([]);
-  const [workouts, setWorkouts] = useState([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [assigningStudent, setAssigningStudent] = useState(null);
+  const [pendingAssignWorkoutId, setPendingAssignWorkoutId] = useState(null);
   const [assignDay, setAssignDay] = useState('Segunda');
   const addToast = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { revision } = useStorageSync('students');
+  useStorageSync('students');
 
   const emptyForm = { name: '', email: '', phone: '', birthDate: '', gender: 'Masculino', height: '', weight: '', objective: 'Hipertrofia', daysPerWeek: 3, shift: 'Manhã', address: '', medicalNotes: '' };
   const [form, setForm] = useState(emptyForm);
 
-  const loadCachedData = () => {
-    setStudents(getStudents());
-    setWorkouts(getWorkouts());
-  };
+  const students = getStudents();
+  const workouts = getWorkouts();
 
   useEffect(() => {
-    loadCachedData();
-  }, [user, revision]);
-
-  useEffect(() => {
-    let active = true;
-    forceSyncData().finally(() => {
-      if (active) loadCachedData();
-    });
-    return () => { active = false; };
+    forceSyncData().catch(() => {});
   }, [user]);
 
   const filtered = students.filter(s => (s.name || '').toLowerCase().includes((search || '').toLowerCase()) || (s.email || '').toLowerCase().includes((search || '').toLowerCase()));
   const officialWorkoutIds = new Set(workouts.map(w => w.id));
-  const getOfficialWorkoutCount = (student) => (
-    Array.isArray(student.workoutIds)
+  const getOfficialWorkoutCount = (student) => {
+    const activeSchedule = Array.isArray(student.workoutSchedule)
+      ? student.workoutSchedule.filter(schedule => schedule?.status !== 'archived')
+      : [];
+
+    if (activeSchedule.length > 0) {
+      return activeSchedule.filter(schedule => officialWorkoutIds.has(schedule.workoutId || schedule.workout_id)).length;
+    }
+
+    return Array.isArray(student.workoutIds)
       ? student.workoutIds.filter(id => officialWorkoutIds.has(id)).length
-      : 0
-  );
+      : 0;
+  };
 
   const openNew = () => { 
     if (!canAddStudent()) {
@@ -58,10 +55,6 @@ export default function Students() {
   };
   const openEdit = (student) => { setForm(student); setEditingStudent(student); setShowModal(true); };
   
-  const reloadStudents = () => {
-    setStudents(getStudents());
-  };
-  
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name) { addToast('Nome é obrigatório', 'error'); return; }
@@ -70,7 +63,6 @@ export default function Students() {
       const payload = { ...form, personalId: user?.id || form.personalId };
       await saveStudent(payload);
       
-      reloadStudents();
       setShowModal(false);
       addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
     } catch (err) {
@@ -82,17 +74,29 @@ export default function Students() {
   const handleDelete = (id) => {
     if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
     deleteStudent(id);
-    reloadStudents();
     addToast('Aluno excluído', 'info');
   };
 
-  const openAssign = (student) => { setAssigningStudent(student); setShowAssignModal(true); };
+  const openAssign = (student) => {
+    setAssigningStudent(student);
+    setPendingAssignWorkoutId(null);
+    setShowAssignModal(true);
+  };
   
-  const handleAssign = (workoutId) => {
-    assignWorkoutToStudent(workoutId, assigningStudent.id, assignDay);
-    reloadStudents();
+  const handleAssign = async (workoutId, archiveActive = false) => {
+    await assignWorkoutToStudent(workoutId, assigningStudent.id, assignDay, false, { archiveActive });
     setShowAssignModal(false);
+    setPendingAssignWorkoutId(null);
     addToast(`Treino atribuído para ${assignDay}!`, 'success');
+  };
+
+  const chooseWorkoutToAssign = (workoutId) => {
+    if (hasActiveWorkoutsForStudent(assigningStudent)) {
+      setPendingAssignWorkoutId(workoutId);
+      return;
+    }
+
+    handleAssign(workoutId);
   };
 
   const handleWhatsAppChat = (phone) => {
@@ -253,15 +257,27 @@ export default function Students() {
 
       {/* Assign Workout Modal */}
       {showAssignModal && (
-        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowAssignModal(false); setPendingAssignWorkoutId(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h3>Atribuir Treino</h3>
-              <button className="modal-close" onClick={() => setShowAssignModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setShowAssignModal(false); setPendingAssignWorkoutId(null); }}><X size={20} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
               Selecione um treino e dia da semana para <strong>{assigningStudent?.name}</strong>:
             </p>
+            {pendingAssignWorkoutId && (
+              <div className="card" style={{ padding: '14px', marginBottom: '16px', border: '1px solid rgba(245, 158, 11, 0.35)', background: 'rgba(245, 158, 11, 0.08)' }}>
+                <strong style={{ color: '#f59e0b', display: 'block', marginBottom: '6px' }}>Este aluno já possui treinos ativos.</strong>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '12px' }}>
+                  Escolha se deseja substituir os treinos anteriores ou manter tudo ativo.
+                </p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleAssign(pendingAssignWorkoutId, true)}>Substituir treinos anteriores</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => handleAssign(pendingAssignWorkoutId, false)}>Adicionar aos treinos existentes</button>
+                </div>
+              </div>
+            )}
             <div className="form-group" style={{ marginBottom: '16px' }}>
               <label className="form-label">Dia da Semana</label>
               <select className="form-select" value={assignDay} onChange={(e) => setAssignDay(e.target.value)}>
@@ -281,7 +297,7 @@ export default function Students() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {workouts.map(w => (
-                  <button key={w.id} className="card" style={{ cursor: 'pointer', textAlign: 'left', padding: '14px 18px' }} onClick={() => handleAssign(w.id)}>
+                  <button key={w.id} className="card" style={{ cursor: 'pointer', textAlign: 'left', padding: '14px 18px' }} onClick={() => chooseWorkoutToAssign(w.id)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <Dumbbell size={20} style={{ color: 'var(--primary)' }} />
                       <div>
@@ -300,16 +316,26 @@ export default function Students() {
       <style>{`
         .students-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
           gap: 16px;
         }
         
-        .student-card { display: flex; flex-direction: column; gap: 14px; }
+        .student-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 100%; }
         
         .student-card-header {
           display: flex;
           align-items: center;
           gap: 12px;
+          min-width: 0;
+        }
+
+        .student-card-header > div:last-child {
+          min-width: 0;
+        }
+
+        .student-card-header h4 {
+          flex-wrap: wrap;
+          overflow-wrap: anywhere;
         }
         
         .student-avatar {
@@ -330,6 +356,7 @@ export default function Students() {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          min-width: 0;
         }
         
         .student-detail {
@@ -338,19 +365,31 @@ export default function Students() {
           gap: 8px;
           font-size: 0.8rem;
           color: var(--text-secondary);
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
         
         .student-detail svg { color: var(--text-muted); flex-shrink: 0; }
         
         .student-actions {
           display: flex;
+          flex-wrap: wrap;
           gap: 8px;
           padding-top: 12px;
           border-top: 1px solid var(--border);
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .student-actions .btn-sm {
+          min-width: 0;
         }
 
         @media (max-width: 768px) {
-          .students-grid { grid-template-columns: 1fr; }
+          .students-grid { grid-template-columns: minmax(0, 1fr); }
+          .student-actions .btn-sm { flex: 1 1 140px; white-space: normal; }
+          .student-actions .btn-icon { flex: 0 0 36px; }
+          .student-actions > div { display: none; }
         }
       `}</style>
     </div>

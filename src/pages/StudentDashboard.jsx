@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../App';
-import { getStudentByEmail, getEvolutionByStudent, calculateIMC, calculateTMB, calculateCalories, getTrainerById, toggleScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent } from '../lib/storage';
+import { useAuth } from '../lib/app-context';
+import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, DownloadCloud } from 'lucide-react';
 
@@ -9,7 +9,6 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import PremiumLobby from './PremiumLobby';
 import AIAssistantNotice from '../components/AIAssistantNotice';
 import AIChat from '../components/AIChat';
-import { supabase } from '../lib/supabaseClient';
 import usePWAInstall from '../hooks/usePWAInstall';
 
 const metrics = [
@@ -25,12 +24,17 @@ export default function StudentDashboard() {
   const [personal, setPersonal] = useState(null);
   const [workouts, setWorkouts] = useState([]);
   const [evolution, setEvolution] = useState([]);
+  const [scheduleEvents, setScheduleEvents] = useState([]);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [pendingCompletionId, setPendingCompletionId] = useState(null);
   const workoutsInitRef = useRef(false);
   const paymentProcessedRef = useRef(false);
   const { revision } = useStorageSync('notifications');
   const { canInstall, installApp, isInstalling } = usePWAInstall();
+  const activeStudentId = student?.id || student?.studentId || student?.student_id;
+  const studentPersonalId = student?.personalId;
+  const studentEmail = student?.email;
 
   // Safe workout init — runs once per mount via ref guard
   useEffect(() => {
@@ -47,43 +51,18 @@ export default function StudentDashboard() {
     if (user?.email || user?.type === 'aluno') {
       let isMounted = true;
       const fetchFreshData = async () => {
-        let s = getStudentByEmail(user?.email);
+        let s = null;
         
-        // 🚀 Fetch explicit data from Supabase to prevent stale personalId
+        // Resolve once by normalized email so duplicated student rows prefer the trainer-linked profile.
         try {
-          const { data: freshData, error } = await supabase
-            .from('students')
-            .select('*')
-            .eq('email', user.email.toLowerCase().trim())
-            .limit(1);
-
-          if (error) {
-            console.warn("🔥 Supabase fetch warning:", error);
-          }
-          
-          const studentRow = Array.isArray(freshData) ? freshData[0] : null;
-          if (studentRow && isMounted) {
-            s = { ...s, ...studentRow };
-            localStorage.setItem('powerfit_current_user', JSON.stringify(s));
-            // Also overwrite in powerfit_students to keep LocalStorage in perfect sync
-            const allStudents = JSON.parse(localStorage.getItem('powerfit_students') || '[]');
-            const idx = allStudents.findIndex(st => st.email === s.email);
-            if (idx !== -1) {
-              allStudents[idx] = s;
-              localStorage.setItem('powerfit_students', JSON.stringify(allStudents));
-            }
-          }
+          s = await resolveStudentProfileForAuthUser(user, { persist: true });
         } catch (e) {
           console.error("🔥 Error syncing fresh student data:", e);
         }
 
         if (!isMounted) return;
 
-        if (!s) {
-          s = { ...user, isPremium: user?.isPremium === true };
-        } else {
-          s.isPremium = s.isPremium === true || user?.isPremium === true;
-        }
+        s = s ? { ...s, isPremium: isStudentPremium(s) } : { ...user, isPremium: isStudentPremium(user) };
         
         setStudent(s);
 
@@ -108,7 +87,10 @@ export default function StudentDashboard() {
 
           if (!isMounted) return;
 
-          setEvolution(getEvolutionByStudent(activeStudentId));
+          await refreshEvolutionFromSupabase(s);
+          setEvolution(getStudentVisibleEvolution(s));
+          await refreshScheduleFromSupabase();
+          setScheduleEvents(getStudentVisibleSchedule(s));
           const notifs = getNotificationsByStudent(activeStudentId);
           setNotifications(notifs.filter(n => !n.read));
         }
@@ -118,18 +100,15 @@ export default function StudentDashboard() {
       fetchFreshData();
       return () => { isMounted = false; };
     }
-  }, [user?.email, user?.id, revision]);
+  }, [user, revision]);
 
   useEffect(() => {
-    if (!student) return;
+    if (!activeStudentId) return;
 
     let isMounted = true;
     const refreshWeeklyWorkouts = async () => {
-      const activeStudentId = student.id || student.studentId || student.student_id;
-      if (!activeStudentId) return;
-
       try {
-        const freshWorkouts = await fetchWorkoutsForStudent(activeStudentId, student.personalId, student.email || user?.email);
+        const freshWorkouts = await fetchWorkoutsForStudent(activeStudentId, studentPersonalId, studentEmail || user?.email);
         if (isMounted && Array.isArray(freshWorkouts)) {
           setWorkouts(freshWorkouts);
         }
@@ -143,29 +122,40 @@ export default function StudentDashboard() {
       isMounted = false;
       window.removeEventListener('powerfit:weekly-schedule-updated', refreshWeeklyWorkouts);
     };
-  }, [student?.id, student?.studentId, student?.student_id, student?.personalId, student?.email, user?.email]);
+  }, [activeStudentId, studentPersonalId, studentEmail, user?.email]);
 
-  const handleToggleWorkout = (scheduleId) => {
+  const applyWorkoutStatus = (scheduleId, status) => {
     if (!student) return;
-    toggleScheduleStatus(student.id || student.studentId, scheduleId);
+    updateWorkoutScheduleStatus(student.id || student.studentId || student.student_id, scheduleId, status);
     setStudent(prev => {
       if (!prev) return null;
       const newSchedule = (prev.workoutSchedule || []).map(w => 
-        w.id === scheduleId ? { ...w, status: w.status === 'completed' ? 'pending' : 'completed' } : w
+        w.id === scheduleId ? { ...w, status, completed: status === 'completed' || status === 'archived' } : w
       );
       return { ...prev, workoutSchedule: newSchedule };
     });
     
     setWorkouts(prev => prev.map(w => 
-      w.scheduleId === scheduleId ? { ...w, status: w.status === 'completed' ? 'pending' : 'completed' } : w
+      w.scheduleId === scheduleId ? { ...w, status, completed: status === 'completed' || status === 'archived' } : w
     ));
+    setPendingCompletionId(null);
+  };
+
+  const handleToggleWorkout = (workout) => {
+    if (!workout?.scheduleId) return;
+    if (workout.status === 'completed') {
+      applyWorkoutStatus(workout.scheduleId, 'pending');
+      return;
+    }
+
+    setPendingCompletionId(workout.scheduleId);
   };
 
   const handleAIClick = () => {
     if (student?.isPremium === true) {
       setIsAIChatOpen(true);
     } else {
-      navigate('/planos');
+      navigate('/upgrade');
     }
   };
 
@@ -205,11 +195,17 @@ export default function StudentDashboard() {
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
 
   const calories = calculateCalories(tmb, student.daysPerWeek || 3);
+  const activeWorkouts = workouts.filter(w => w.status !== 'archived');
 
   const chartData = evolution.map(e => ({
     ...e,
     date: new Date(e.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
   }));
+
+  const upcomingEvents = scheduleEvents
+    .filter(event => event.date)
+    .sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`))
+    .slice(0, 3);
 
   return (
     <div className="page-container animate-fade-in">
@@ -256,7 +252,7 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
-      {user.personalId ? (
+      {student.personalId ? (
         personal && (
           <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "24px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Users size={14} /> Seu Personal: <strong style={{ color: "#06b6d4" }}>{personal.name}</strong>
@@ -273,7 +269,7 @@ export default function StudentDashboard() {
       )}
 
 
-      {student.isPremium ? (
+      {isStudentPremium(student) ? (
         <>
           <AIAssistantNotice 
             student={student} 
@@ -321,13 +317,32 @@ export default function StudentDashboard() {
         </div>
       )}
 
+      {upcomingEvents.length > 0 && (
+        <>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={20} style={{ color: 'var(--primary)' }} /> Agendamentos
+          </h3>
+          <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
+            {upcomingEvents.map(event => (
+              <div key={event.id} className="card" style={{ padding: '16px', borderLeft: '4px solid var(--primary)' }}>
+                <h5 style={{ margin: 0, marginBottom: '6px', fontSize: '0.95rem' }}>{event.title}</h5>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                  {new Date(`${event.date}T12:00:00`).toLocaleDateString('pt-BR')} {event.time ? `às ${event.time}` : ''}
+                </p>
+                {event.notes && <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{event.notes}</p>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Weekly Planner — always show all 7 days */}
       <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Calendar size={20} style={{ color: 'var(--primary)' }} /> Plano Semanal
       </h3>
       <div style={{ display: 'grid', gap: '12px', marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
         {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map(day => {
-          const dayWorkouts = workouts.filter(w => w.day === day);
+          const dayWorkouts = activeWorkouts.filter(w => w.day === day);
           const isToday = today.toLowerCase().includes(day.toLowerCase().replace('á','a').replace('ç','c'));
           return (
             <div key={day} className="card" style={{ 
@@ -359,7 +374,7 @@ export default function StudentDashboard() {
                           </h5>
                           {w.scheduleId && (
                             <button 
-                              onClick={() => handleToggleWorkout(w.scheduleId)}
+                              onClick={() => handleToggleWorkout(w)}
                               className={isCompleted ? "btn btn-sm btn-success" : "btn btn-sm btn-outline"}
                               style={{ padding: "2px 10px", fontSize: "0.7rem", height: "auto", minHeight: "26px" }}
                             >
@@ -388,13 +403,13 @@ export default function StudentDashboard() {
       </div>
 
       {/* Treinos gerais (não associados a dia) */}
-      {workouts.filter(w => w.day === 'Geral').length > 0 && (
+      {activeWorkouts.filter(w => w.day === 'Geral').length > 0 && (
         <>
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Dumbbell size={20} style={{ color: 'var(--primary)' }} /> Treinos Gerais
           </h3>
           <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
-            {workouts.filter(w => w.day === 'Geral').map((w, idx) => (
+            {activeWorkouts.filter(w => w.day === 'Geral').map((w, idx) => (
               <div key={w.scheduleId || idx} className="card" style={{ padding: '16px' }}>
                 <h5 style={{ marginBottom: '6px', fontSize: '0.95rem' }}>{w.name}</h5>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{w.description}</p>
@@ -405,7 +420,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Evolution Chart */}
-      {chartData.length > 1 && (
+      {chartData.length > 1 ? (
         <>
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TrendingUp size={20} style={{ color: 'var(--primary)' }} /> Minha Evolução
@@ -425,6 +440,30 @@ export default function StudentDashboard() {
             </ResponsiveContainer>
           </div>
         </>
+      ) : (
+        <div className="card" style={{ textAlign: 'center', padding: '28px', marginBottom: '24px' }}>
+          <TrendingUp size={36} style={{ color: 'var(--text-muted)', marginBottom: '10px' }} />
+          <h4 style={{ color: 'var(--text-secondary)', marginBottom: '6px' }}>{evolution.length === 0 ? 'Nenhuma evolução registrada ainda' : 'Dados insuficientes para gráfico'}</h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{evolution.length === 0 ? 'Quando seu personal registrar medidas, elas aparecerão aqui.' : 'Com pelo menos 2 medidas, o gráfico será exibido.'}</p>
+        </div>
+      )}
+
+      {pendingCompletionId && (
+        <div className="modal-overlay" onClick={() => setPendingCompletionId(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3>Treino concluído</h3>
+              <button className="modal-close" onClick={() => setPendingCompletionId(null)}>x</button>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
+              O que deseja fazer com este treino agora?
+            </p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={() => applyWorkoutStatus(pendingCompletionId, 'completed')}>Manter treino</button>
+              <button className="btn btn-primary" onClick={() => applyWorkoutStatus(pendingCompletionId, 'archived')}>Arquivar treino</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { getStudents, getWorkouts, getEvolution, getScheduleByDate, getUserPlan, getStudentUsage, isVipUser, saveNotification, forceSyncData } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell } from 'lucide-react';
@@ -9,36 +9,30 @@ export default function Dashboard() {
   const { user } = useAuth();
   const addToast = useToast();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ students: 0, workouts: 0, evolution: 0, premiumCount: 0 });
-  const [todayEvents, setTodayEvents] = useState([]);
   const plan = getUserPlan();
   const usage = getStudentUsage();
   const isVip = isVipUser(user?.email);
-  const { revision } = useStorageSync();
+  useStorageSync();
 
-  useEffect(() => {
-    const students = getStudents();
-    const workouts = getWorkouts();
-    const evolution = getEvolution();
-    const today = new Date().toISOString().split('T')[0];
-    const todaySchedule = getScheduleByDate(today);
-    
-    setStats({
-      students: students.length,
-      workouts: workouts.length,
-      evolution: evolution.length,
-      premiumCount: students.filter(s => s.isPremium).length,
-    });
-    // Merge student names
-    setTodayEvents(todaySchedule.map(e => {
-      const student = students.find(s => s.id === e.studentId) || {};
-      return {
-        ...e,
-        studentName: student.name || "",
-        studentPhone: student.phone || student.whatsapp || ""
-      };
-    }));
-  }, [revision]);
+  const students = getStudents();
+  const workouts = getWorkouts();
+  const evolution = getEvolution();
+  const today = new Date().toISOString().split('T')[0];
+  const todaySchedule = getScheduleByDate(today);
+  const stats = {
+    students: students.length,
+    workouts: workouts.length,
+    evolution: evolution.length,
+    premiumCount: students.filter(s => s.isPremium).length,
+  };
+  const todayEvents = todaySchedule.map(e => {
+    const student = students.find(s => s.id === e.studentId) || {};
+    return {
+      ...e,
+      studentName: student.name || "",
+      studentPhone: student.phone || student.whatsapp || ""
+    };
+  });
 
   useEffect(() => {
     forceSyncData().catch(() => {});

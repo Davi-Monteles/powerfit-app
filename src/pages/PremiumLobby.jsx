@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useAuth, useToast } from '../App';
+import { useToast } from '../lib/app-context';
 import { STUDENT_PLANS } from '../lib/storage';
-import { Crown, Star, CheckCircle, Shield, Zap, TrendingUp } from 'lucide-react';
+import { Crown, CheckCircle, Shield, Zap, TrendingUp, Target } from 'lucide-react';
 
 export default function PremiumLobby({ onUpgrade }) {
-  const { user } = useAuth();
   const addToast = useToast();
   const [loading, setLoading] = useState(false);
   const plan = STUDENT_PLANS[1];
@@ -24,6 +23,7 @@ export default function PremiumLobby({ onUpgrade }) {
 
   const benefits = [
     { icon: <Zap size={20} className="text-primary" />, title: "IA Personal Trainer", desc: "Uma inteligência artificial treinada para analisar seus treinos e sugerir ajustes baseados na sua evolução." },
+    { icon: <Target size={20} className="text-primary" />, title: "Atlas Anatômico 3D", desc: "Defina alvos corporais e gere treinos mais direcionados quando estiver no plano PRO." },
     { icon: <TrendingUp size={20} className="text-primary" />, title: "Gráficos de Evolução Pro", desc: "Acompanhe todo o seu histórico com métricas avançadas e relatórios de desempenho." },
     { icon: <Shield size={20} className="text-primary" />, title: "Treino sem Limites", desc: "Acesse todas as funcionalidades da plataforma mesmo sem um Personal Trainer vinculado." }
   ];

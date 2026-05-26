@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
-import { exportAllData, importData, getStudentById, saveStudent, getStudentByEmail } from '../lib/storage';
+import { exportAllData, importData, saveStudent, fetchSupabaseRowByEmail, resolveStudentProfileFromCache } from '../lib/storage';
 import { supabase } from '../lib/supabaseClient';
-import { useToast, useTheme, useAuth } from '../App';
+import { stripSensitiveSessionFields } from '../lib/security';
+import { useToast, useTheme, useAuth } from '../lib/app-context';
 import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield, CreditCard, User } from 'lucide-react';
 
 export default function Settings() {
@@ -11,7 +12,7 @@ export default function Settings() {
   const fileInputRef = useRef(null);
   
   const isStudent = user?.type === 'aluno';
-  const studentData = isStudent ? (getStudentByEmail(user?.email) || (user?.studentId ? getStudentById(user.studentId) : null)) : null;
+  const studentData = isStudent ? resolveStudentProfileFromCache(user) : null;
   
   const [importing, setImporting] = useState(false);
   const [profile, setProfile] = useState({
@@ -76,10 +77,12 @@ export default function Settings() {
         return;
       }
       
-      const { error } = await supabase
-        .from('students')
-        .update(updates)
-        .eq('email', cleanEmail);
+      const studentRow = await fetchSupabaseRowByEmail('students', cleanEmail);
+      const updateQuery = studentRow?.id
+        ? supabase.from('students').update(updates).eq('id', studentRow.id)
+        : supabase.from('students').update(updates).ilike('email', cleanEmail);
+
+      const { error } = await updateQuery;
         
       if (error) {
         if (error.code === 'PGRST204' || error.message?.includes('target_muscles')) {
@@ -89,10 +92,10 @@ export default function Settings() {
              height: updates.height,
              birthDate: updates.birthDate
           };
-          const fallbackRes = await supabase
-             .from('students')
-             .update(fallbackUpdates)
-             .eq('email', cleanEmail);
+          const fallbackQuery = studentRow?.id
+             ? supabase.from('students').update(fallbackUpdates).eq('id', studentRow.id)
+             : supabase.from('students').update(fallbackUpdates).ilike('email', cleanEmail);
+          const fallbackRes = await fallbackQuery;
              
           if (fallbackRes.error) {
              addToast('Erro ao salvar fallback no banco (Supabase).', 'error');
@@ -108,7 +111,7 @@ export default function Settings() {
       }
 
       // 2. Atualizar estado local para imediaticidade na UI
-      const updatedUser = { ...user, ...updates };
+      const updatedUser = stripSensitiveSessionFields({ ...user, ...updates });
       localStorage.setItem('powerfit_current_user', JSON.stringify(updatedUser));
 
       if (studentData && (studentData.id || studentData.studentId)) {

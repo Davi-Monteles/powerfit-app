@@ -1,31 +1,34 @@
 import { useState, useEffect } from 'react';
-import { getStudents, getPhotosByStudent, savePhoto, deletePhoto } from '../lib/storage';
+import { getStudents, getPhotosByStudent, savePhoto, deletePhoto, forceSyncData, resolveStudentProfileFromCache } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { Camera, Plus, X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Photos() {
-  const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState('');
-  const [photos, setPhotos] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareIdxs, setCompareIdxs] = useState([0, -1]);
+  const { user } = useAuth();
   const addToast = useToast();
-  const { revision } = useStorageSync('photos');
+  useStorageSync();
+  const isStudentView = user?.type === 'aluno';
+  const studentProfile = isStudentView ? (resolveStudentProfileFromCache(user) || user) : null;
+  const students = isStudentView ? (studentProfile ? [studentProfile] : []) : getStudents();
+  const selectedStudentId = isStudentView
+    ? studentProfile?.id || studentProfile?.studentId || studentProfile?.student_id || ''
+    : students.some(student => student.id === selectedStudent) ? selectedStudent : students[0]?.id || '';
+  const currentStudent = isStudentView ? studentProfile : students.find(s => s.id === selectedStudentId);
+  const currentStudentId = currentStudent?.id || currentStudent?.studentId || currentStudent?.student_id || '';
 
   const today = new Date().toISOString().split('T')[0];
   const [form, setForm] = useState({ date: today, label: '', image: '' });
 
   useEffect(() => {
-    const s = getStudents();
-    setStudents(s);
-    if (s.length > 0) setSelectedStudent(s[0].id);
-  }, [revision]);
+    forceSyncData().catch(() => {});
+  }, [isStudentView, user?.id, user?.email]);
 
-  useEffect(() => {
-    if (selectedStudent) setPhotos(getPhotosByStudent(selectedStudent));
-  }, [selectedStudent, revision]);
+  const photos = selectedStudentId ? getPhotosByStudent(selectedStudentId, currentStudent?.email) : [];
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -38,9 +41,10 @@ export default function Photos() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    const studentId = selectedStudentId || currentStudentId;
+    if (!studentId) { addToast('Aluno nao encontrado', 'error'); return; }
     if (!form.image) { addToast('Selecione uma foto', 'error'); return; }
-    await savePhoto({ ...form, studentId: selectedStudent });
-    setPhotos(getPhotosByStudent(selectedStudent));
+    await savePhoto({ ...form, studentId, studentEmail: currentStudent?.email, personalId: currentStudent?.personalId || currentStudent?.personal_id });
     setShowModal(false);
     setForm({ date: today, label: '', image: '' });
     addToast('Foto salva!', 'success');
@@ -49,7 +53,6 @@ export default function Photos() {
   const handleDeletePhoto = async (id) => {
     if (!confirm('Excluir esta foto?')) return;
     await deletePhoto(id);
-    setPhotos(getPhotosByStudent(selectedStudent));
     addToast('Foto removida', 'info');
   };
 
@@ -58,12 +61,14 @@ export default function Photos() {
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
-        <h2><Camera size={24} style={{ color: 'var(--primary)' }} /> Fotos Antes/Depois</h2>
+        <h2><Camera size={24} style={{ color: 'var(--primary)' }} /> {isStudentView ? 'Minhas Fotos' : 'Fotos Antes/Depois'}</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select className="form-select" style={{ maxWidth: '200px' }} value={selectedStudent} onChange={e => { setSelectedStudent(e.target.value); setCompareMode(false); }}>
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudent}><Plus size={18} /> Nova Foto</button>
+          {!isStudentView && (
+            <select className="form-select" style={{ maxWidth: '200px' }} value={selectedStudentId} onChange={e => { setSelectedStudent(e.target.value); setCompareMode(false); }}>
+              {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudentId && !currentStudentId}><Plus size={18} /> Nova Foto</button>
         </div>
       </div>
 
@@ -71,7 +76,7 @@ export default function Photos() {
         <div className="empty-state">
           <Camera size={64} />
           <h3>Nenhuma foto registrada</h3>
-          <p>Adicione fotos para acompanhar a evolução visual do aluno</p>
+          <p>{isStudentView ? 'Envie fotos para acompanhar sua evolucao visual.' : 'Adicione fotos para acompanhar a evolução visual do aluno'}</p>
         </div>
       ) : (
         <>
@@ -114,7 +119,7 @@ export default function Photos() {
 
           {/* Photo Grid */}
           <div className="photos-grid">
-            {photos.map((photo, i) => (
+            {photos.map((photo) => (
               <div key={photo.id} className="card photo-card">
                 <img src={photo.image} alt={photo.label || 'Foto'} style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>

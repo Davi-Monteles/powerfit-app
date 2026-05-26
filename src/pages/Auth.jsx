@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { registerUser, loginUser, hydrateSessionUser, getUserPlan } from '../lib/storage';
+import { registerUser, loginUser, hydrateSessionUser, getUserPlan, fetchSupabaseRowByEmail, resolveStudentProfileForAuthUser } from '../lib/storage';
+import { stripSensitiveSessionFields } from '../lib/security';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth({ onLogin }) {
@@ -20,9 +21,7 @@ export default function Auth({ onLogin }) {
     const hydrated = hydrateSessionUser(sessionUser);
     if (!hydrated) return null;
 
-    const safeUser = { ...hydrated };
-    delete safeUser.password;
-    delete safeUser.senha;
+    const safeUser = stripSensitiveSessionFields(hydrated);
     localStorage.setItem('powerfit_current_user', JSON.stringify(safeUser));
     return safeUser;
   };
@@ -52,12 +51,13 @@ export default function Auth({ onLogin }) {
       // Explicit fetch to sync latest data
       if (user?.email) {
         try {
-          const { supabase } = await import('../lib/supabaseClient.js');
-          const table = user.type === 'aluno' ? 'students' : 'users';
-          const { data: rows } = await supabase.from(table).select('*').eq('email', user.email.toLowerCase().trim()).limit(1);
-          const freshData = Array.isArray(rows) ? rows[0] : null;
-          if (freshData) {
-             user = { ...user, ...freshData };
+          if (user.type === 'aluno') {
+            user = await resolveStudentProfileForAuthUser(user, { persist: true });
+          } else {
+            const freshData = await fetchSupabaseRowByEmail('users', user.email);
+            if (freshData) {
+              user = { ...user, ...freshData };
+            }
           }
         } catch (err) {
           if (import.meta.env.DEV) console.debug('[PowerFit] Fresh auth sync skipped:', err.message);

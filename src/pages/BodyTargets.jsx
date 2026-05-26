@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { ArrowLeft, Save, RefreshCw, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Model from 'react-body-highlighter';
-import { getCurrentUser } from '../lib/storage';
+import { fetchSupabaseRowByEmail, getCurrentUser, getStudentVisibleBodyTargets, resolveStudentProfileFromCache } from '../lib/storage';
 import { supabase } from '../lib/supabaseClient';
-import { useToast } from '../App';
+import { useToast } from '../lib/app-context';
 
 // Mapeamento dos músculos nativos da react-body-highlighter
 // Adicionado trapézio no front para que o usuário possa selecionar via lista se estiver vendo de frente
@@ -30,32 +30,100 @@ const muscleGroupsBack = [
   { id: 'calves', name: 'Panturrilhas' }
 ];
 
+const nativeMuscleIds = new Set([
+  'trapezius',
+  'upper-back',
+  'lower-back',
+  'chest',
+  'biceps',
+  'triceps',
+  'forearm',
+  'back-deltoids',
+  'front-deltoids',
+  'abs',
+  'obliques',
+  'adductor',
+  'hamstring',
+  'quadriceps',
+  'abductors',
+  'calves',
+  'gluteal',
+  'head',
+  'neck',
+  'knees',
+  'left-soleus',
+  'right-soleus',
+]);
+
+const atlasGroupMuscles = {
+  trapezius: ['trapezius', 'neck'],
+  chest: ['chest'],
+  abs: ['abs'],
+  obliques: ['obliques'],
+  'front-deltoids': ['front-deltoids'],
+  biceps: ['biceps'],
+  forearm: ['forearm'],
+  quadriceps: ['quadriceps'],
+  'upper-back': ['upper-back'],
+  'lower-back': ['lower-back'],
+  'back-deltoids': ['back-deltoids'],
+  triceps: ['triceps'],
+  gluteal: ['gluteal'],
+  hamstring: ['hamstring'],
+  calves: ['calves'],
+};
+
+const groupIdsByMuscle = Object.entries(atlasGroupMuscles).reduce((map, [groupId, muscles]) => {
+  muscles.forEach((muscle) => {
+    if (!map[muscle]) map[muscle] = groupId;
+  });
+  return map;
+}, {});
+
+const normalizeSelectedGroups = (groups) => {
+  if (!Array.isArray(groups)) return [];
+
+  return [...new Set(groups.map((groupId) => {
+    if (atlasGroupMuscles[groupId]) return groupId;
+    if (groupIdsByMuscle[groupId]) return groupIdsByMuscle[groupId];
+    return nativeMuscleIds.has(groupId) ? groupId : null;
+  }).filter(Boolean))];
+};
+
+const expandSelectedGroups = (groups) => {
+  return [...new Set(normalizeSelectedGroups(groups).flatMap((groupId) => {
+    if (atlasGroupMuscles[groupId]) return atlasGroupMuscles[groupId];
+    return nativeMuscleIds.has(groupId) ? [groupId] : [];
+  }))];
+};
+
+const findGroupForModelMuscle = (muscle, currentGroups) => {
+  return currentGroups.find((group) => group.id === muscle)
+    || currentGroups.find((group) => atlasGroupMuscles[group.id]?.includes(muscle));
+};
+
 export default function BodyTargets() {
   const navigate = useNavigate();
   const addToast = useToast();
   const [selectedGroups, setSelectedGroups] = useState(() => {
-    const user = getCurrentUser();
-    // Default to local storage while we fetch
-    const key = user?.id ? `powerfit_atlas_targets_${user.id}` : 'powerfit_atlas_targets';
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
+    const user = resolveStudentProfileFromCache(getCurrentUser());
+    return normalizeSelectedGroups(getStudentVisibleBodyTargets(user));
   });
   const [isFlipped, setIsFlipped] = useState(false);
 
   React.useEffect(() => {
     const loadTargets = async () => {
-      const user = getCurrentUser();
+      const user = resolveStudentProfileFromCache(getCurrentUser());
       if (user?.email && navigator.onLine) {
         try {
-          const { data } = await supabase.from('students').select('target_muscles').eq('email', user.email.toLowerCase().trim()).maybeSingle();
+          const data = await fetchSupabaseRowByEmail('students', user.email);
           if (data && data.target_muscles) {
-            setSelectedGroups(data.target_muscles);
-            const key = user?.id ? `powerfit_atlas_targets_${user.id}` : 'powerfit_atlas_targets';
-            localStorage.setItem(key, JSON.stringify(data.target_muscles));
+            const normalizedTargets = normalizeSelectedGroups(data.target_muscles);
+            setSelectedGroups(normalizedTargets);
+            const key = data?.id ? `powerfit_atlas_targets_${data.id}` : user?.id ? `powerfit_atlas_targets_${user.id}` : 'powerfit_atlas_targets';
+            localStorage.setItem(key, JSON.stringify(normalizedTargets));
           }
-        } catch (e) {
+        } catch {
           console.error("Failed to load targets from Supabase");
         }
       }
@@ -74,14 +142,15 @@ export default function BodyTargets() {
   const isSelected = (groupId) => selectedGroups.includes(groupId);
   const switchView = () => setIsFlipped(!isFlipped);
   const handleSave = async () => {
-    const user = getCurrentUser();
+    const user = resolveStudentProfileFromCache(getCurrentUser());
     const key = user?.id ? `powerfit_atlas_targets_${user.id}` : 'powerfit_atlas_targets';
     localStorage.setItem(key, JSON.stringify(selectedGroups));
     
     if (user?.email && navigator.onLine) {
         try {
-            await supabase.from('students').update({ target_muscles: selectedGroups }).eq('email', user.email.toLowerCase().trim());
-        } catch(e) {
+            const student = await fetchSupabaseRowByEmail('students', user.email);
+            if (student?.id) await supabase.from('students').update({ target_muscles: selectedGroups }).eq('id', student.id);
+        } catch {
             console.error("Erro ao salvar alvo 3D no Supabase");
         }
     }
@@ -90,14 +159,19 @@ export default function BodyTargets() {
     navigate(-1);
   };
 
+  const currentGroups = isFlipped ? muscleGroupsBack : muscleGroupsFront;
+  const highlightedMuscles = expandSelectedGroups(selectedGroups);
   const data = [
     {
       name: 'Treino Alvo',
-      muscles: selectedGroups
+      muscles: highlightedMuscles
     }
   ];
 
-  const currentGroups = isFlipped ? muscleGroupsBack : muscleGroupsFront;
+  const handleModelClick = ({ muscle }) => {
+    const group = findGroupForModelMuscle(muscle, currentGroups);
+    toggleGroup(group?.id || muscle);
+  };
 
   return (
     <div className='page-container' style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -174,7 +248,7 @@ export default function BodyTargets() {
               data={data}
               style={{ height: '100%', width: '100%' }}
               highlightedColors={['#10DB68']}
-              onClick={({ muscle }) => toggleGroup(muscle)}
+              onClick={handleModelClick}
               type={isFlipped ? "posterior" : "anterior"}
             />
           </div>

@@ -97,7 +97,7 @@ export default function AIChat({ student, isOpen, onClose }) {
                     try {
                       const response = await generateSmartResponse(msg, student, currentMessages);
                       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
-                    } catch(e) {
+                    } catch {
                       setMessages(prev => [...prev, { role: 'assistant', content: 'Ops, falha na conexão.' }]);
                     } finally {
                       setTyping(false);

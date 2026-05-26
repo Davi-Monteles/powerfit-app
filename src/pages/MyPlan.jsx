@@ -2,58 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Star, Zap, Crown, ArrowLeft, ShieldCheck, Sparkles, Users, TrendingUp, Lock } from 'lucide-react';
 import { createMercadoPagoPreference } from '../services/paymentService';
-import { useAuth, useToast } from '../App';
-import { getUserPlan, getStudentUsage } from '../lib/storage';
-
-// ─── Definição dos planos ────────────────────────────────────────────────────
-const PLANS = [
-  {
-    id: 'Starter',
-    name: 'Starter',
-    price: '24,90',
-    priceNum: 24.9,
-    description: 'Ideal para quem está começando.',
-    features: ['Até 10 alunos', 'Dashboard completo', 'Montagem de treinos', 'Suporte via E-mail'],
-    iconColor: '#71717a',
-    glowColor: 'rgba(113,113,122,0.12)',
-    borderColor: 'rgba(113,113,122,0.25)',
-    btnGradient: 'linear-gradient(135deg,#3f3f46,#52525b)',
-    btnHoverGradient: 'linear-gradient(135deg,#52525b,#71717a)',
-  },
-  {
-    id: 'Pro',
-    name: 'Pro',
-    price: '49,90',
-    priceNum: 49.9,
-    description: 'O equilíbrio perfeito entre IA e gestão.',
-    features: ['Até 30 alunos', 'IA (20 treinos/mês)', 'Fotos antes/depois', 'Suporte Prioritário'],
-    isPopular: true,
-    iconColor: '#3b82f6',
-    glowColor: 'rgba(59,130,246,0.15)',
-    borderColor: 'rgba(59,130,246,0.4)',
-    btnGradient: 'linear-gradient(135deg,#2563eb,#3b82f6)',
-    btnHoverGradient: 'linear-gradient(135deg,#1d4ed8,#2563eb)',
-  },
-  {
-    id: 'Elite',
-    name: 'Elite',
-    price: '89,90',
-    priceNum: 89.9,
-    description: 'Domine o mercado sem limites.',
-    features: ['Alunos Ilimitados', 'IA Ilimitada (24/7)', 'Relatórios Avançados', 'Suporte VIP WhatsApp'],
-    iconColor: '#f97316',
-    glowColor: 'rgba(249,115,22,0.15)',
-    borderColor: 'rgba(249,115,22,0.4)',
-    btnGradient: 'linear-gradient(135deg,#ea580c,#f97316)',
-    btnHoverGradient: 'linear-gradient(135deg,#c2410c,#ea580c)',
-  },
-];
+import { useAuth, useToast } from '../lib/app-context';
+import { getUserPlan, getStudentUsage, isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
+import { PERSONAL_PLANS } from '../lib/plans';
 
 // ─── Ícones por plano ────────────────────────────────────────────────────────
 const PlanIcon = ({ planId, color }) => {
   const size = 22;
-  if (planId === 'Pro') return <Zap size={size} color={color} />;
-  if (planId === 'Elite') return <Crown size={size} color={color} />;
+  if (planId === 'pro') return <Zap size={size} color={color} />;
+  if (planId === 'elite') return <Crown size={size} color={color} />;
   return <Star size={size} color={color} />;
 };
 
@@ -66,15 +23,12 @@ export default function MyPlan() {
   const [hoveredPlan, setHoveredPlan] = useState(null);
 
   // Guards contra dados ausentes
-  const user = auth?.user || null;
+  const user = auth?.user?.type === 'aluno' ? resolveStudentProfileFromCache(auth.user) : (auth?.user || null);
   const currentPlanData = getUserPlan() || null;
   const usage = getStudentUsage() || { used: 0, limit: 0, percentage: 0 };
-  const isVip = user?.type === 'aluno' && user?.isPremium === true;
+  const isVip = user?.type === 'aluno' && isStudentPremium(user);
 
-  // Identifica o plano atual pelo id (case-insensitive)
-  const currentPlanId = currentPlanData?.id
-    ? currentPlanData.id.charAt(0).toUpperCase() + currentPlanData.id.slice(1).toLowerCase()
-    : null;
+  const currentPlanId = currentPlanData?.id || null;
 
   // Progresso de uso (sem Infinity puro — usa 999 como limite para VIP)
   const usageLimit = usage.limit === Infinity ? 999 : (usage.limit || 0);
@@ -266,7 +220,7 @@ export default function MyPlan() {
           gap: '24px',
           alignItems: 'stretch',
         }}>
-          {PLANS.map((plan) => {
+          {PERSONAL_PLANS.map((plan) => {
             const isCurrent = currentPlanId === plan.id;
             const isLoading = loading === plan.id;
             const isHovered = hoveredPlan === plan.id;
@@ -401,10 +355,10 @@ export default function MyPlan() {
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
                       <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#71717a', marginTop: '6px' }}>R$</span>
                       <span style={{ fontSize: '3.2rem', fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                        {plan.price.split(',')[0]}
+                        {plan.priceDisplay.split(',')[0]}
                       </span>
                       <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#a1a1aa', marginTop: '4px' }}>
-                        ,{plan.price.split(',')[1]}
+                        ,{plan.priceDisplay.split(',')[1]}
                       </span>
                     </div>
                     <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: '#52525b', fontWeight: 600 }}>por mes — cancele quando quiser</p>

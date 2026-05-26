@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getStudents, getEvolutionByStudent, saveEvolutionEntry, deleteEvolutionEntry } from '../lib/storage';
+import { getStudents, getEvolutionByStudent, saveEvolutionEntry, deleteEvolutionEntry, forceSyncData, resolveStudentProfileFromCache } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { TrendingUp, Plus, X, Trash2, Calendar, Scale, Ruler } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -30,32 +30,30 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Evolution() {
-  const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState('');
-  const [evolutionData, setEvolutionData] = useState([]);
-  const [activeMetrics, setActiveMetrics] = useState(['weight', 'bodyFat']);
+  const [activeMetrics, setActiveMetrics] = useState(['weight', 'waist', 'hip', 'chest']);
   const [showModal, setShowModal] = useState(false);
+  const { user } = useAuth();
   const addToast = useToast();
-  const { revision } = useStorageSync('evolution');
+  useStorageSync();
+  const isStudentView = user?.type === 'aluno';
+  const studentProfile = isStudentView ? (resolveStudentProfileFromCache(user) || user) : null;
+  const students = isStudentView ? (studentProfile ? [studentProfile] : []) : getStudents();
+  const selectedStudentId = isStudentView
+    ? studentProfile?.id || studentProfile?.studentId || studentProfile?.student_id || ''
+    : students.some(student => student.id === selectedStudent) ? selectedStudent : students[0]?.id || '';
+  const currentStudent = isStudentView ? studentProfile : students.find(s => s.id === selectedStudentId);
+  const currentStudentId = currentStudent?.id || currentStudent?.studentId || currentStudent?.student_id || '';
 
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = { date: today, weight: '', bodyFat: '', chest: '', waist: '', hip: '', arm: '', thigh: '' };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    const studentsList = getStudents();
-    setStudents(studentsList);
-    if (studentsList.length > 0) {
-      setSelectedStudent(studentsList[0].id);
-    }
-  }, [revision]);
+    forceSyncData().catch(() => {});
+  }, [isStudentView, user?.id, user?.email]);
 
-  useEffect(() => {
-    if (selectedStudent) {
-      const data = getEvolutionByStudent(selectedStudent);
-      setEvolutionData(data);
-    }
-  }, [selectedStudent, revision]);
+  const evolutionData = selectedStudentId ? getEvolutionByStudent(selectedStudentId, currentStudent?.email) : [];
 
   const toggleMetric = (key) => {
     setActiveMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
@@ -68,10 +66,15 @@ export default function Evolution() {
 
   const handleSave = (e) => {
     e.preventDefault();
-    if (!selectedStudent) { addToast('Selecione um aluno', 'error'); return; }
+    const studentId = selectedStudentId || currentStudentId;
+    if (!studentId) { addToast('Aluno nao encontrado', 'error'); return; }
     if (!form.date) { addToast('Selecione a data', 'error'); return; }
+    if (!['weight', 'waist', 'hip', 'chest'].some(key => form[key])) {
+      addToast('Preencha pelo menos peso, cintura, quadril ou peito', 'error');
+      return;
+    }
     
-    const entry = { ...form, studentId: selectedStudent };
+    const entry = { ...form, studentId, studentEmail: currentStudent?.email, personalId: currentStudent?.personalId || currentStudent?.personal_id };
     // Convert numeric fields
     metrics.forEach(m => {
       if (entry[m.key]) entry[m.key] = parseFloat(entry[m.key]);
@@ -79,7 +82,6 @@ export default function Evolution() {
     });
 
     saveEvolutionEntry(entry);
-    setEvolutionData(getEvolutionByStudent(selectedStudent));
     setShowModal(false);
     setForm(emptyForm);
     addToast('Medida registrada!', 'success');
@@ -88,11 +90,9 @@ export default function Evolution() {
   const handleDeleteEntry = (id) => {
     if (!confirm('Excluir este registro?')) return;
     deleteEvolutionEntry(id);
-    setEvolutionData(getEvolutionByStudent(selectedStudent));
     addToast('Registro removido', 'info');
   };
 
-  const currentStudent = students.find(s => s.id === selectedStudent);
   const latestData = evolutionData[evolutionData.length - 1];
   const previousData = evolutionData[evolutionData.length - 2];
 
@@ -105,23 +105,25 @@ export default function Evolution() {
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
-        <h2><TrendingUp size={24} style={{ color: 'var(--primary)' }} /> Evolução do Aluno</h2>
+        <h2><TrendingUp size={24} style={{ color: 'var(--primary)' }} /> {isStudentView ? 'Minha Evolucao' : 'Evolução do Aluno'}</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select className="form-select" style={{ maxWidth: '220px' }} value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)}>
-            {students.length === 0 && <option value="">Nenhum aluno</option>}
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudent}>
+          {!isStudentView && (
+            <select className="form-select" style={{ maxWidth: '220px' }} value={selectedStudentId} onChange={e => setSelectedStudent(e.target.value)}>
+              {students.length === 0 && <option value="">Nenhum aluno</option>}
+              {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudentId && !currentStudentId}>
             <Plus size={18} /> Nova Medida
           </button>
         </div>
       </div>
 
-      {!selectedStudent || students.length === 0 ? (
+      {!selectedStudentId || students.length === 0 ? (
         <div className="empty-state">
           <TrendingUp size={64} />
           <h3>Nenhum aluno selecionado</h3>
-          <p>Cadastre alunos primeiro para acompanhar a evolução</p>
+          <p>{isStudentView ? 'Seu perfil de aluno nao foi encontrado.' : 'Cadastre alunos primeiro para acompanhar a evolução'}</p>
         </div>
       ) : (
         <>

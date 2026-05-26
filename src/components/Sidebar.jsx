@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth, useTheme, useToast } from '../App';
+import { useAuth, useTheme, useToast } from '../lib/app-context';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target, Crown, Lock, DownloadCloud } from 'lucide-react';
+import { isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
@@ -10,7 +11,6 @@ export default function Sidebar({ open, onClose }) {
 
   const isStudent = user?.type === 'aluno';
   const isMaster = user?.type === 'master';
-  const isPersonal = user?.type === 'personal';
   const addToast = useToast();
 
   const personalNavItems = [
@@ -29,18 +29,16 @@ export default function Sidebar({ open, onClose }) {
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
-  const isVip = user?.isPremium === true;
+  const resolvedUser = isStudent ? resolveStudentProfileFromCache(user) : user;
+  const isVip = isStudentPremium(resolvedUser);
 
   const studentNavItems = [
     { path: '/aluno', label: 'Meu Painel', icon: LayoutDashboard },
     { path: '/workouts', label: 'Meus Treinos', icon: Dumbbell },
-    { path: '/schedule', label: 'Agenda', icon: CalendarDays },
-    { path: '/evolution', label: 'Evolução', icon: TrendingUp },
-    { path: '/photos', label: 'Fotos', icon: Camera },
-    ...(isVip ? [
-      { path: '/ai-chat', label: 'Treinador IA', icon: Zap },
-      { path: '/body-targets', label: 'Alvos Corporais', icon: Target },
-    ] : []),
+    { path: '/evolution', label: 'Minha Evolucao', icon: TrendingUp },
+    { path: '/photos', label: 'Minhas Fotos', icon: Camera },
+    { path: '/ai-chat', label: 'Treinador IA', icon: Zap, restricted: !isVip },
+    { path: '/body-targets', label: 'Alvos Corporais', icon: Target, restricted: !isVip },
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
@@ -103,9 +101,9 @@ export default function Sidebar({ open, onClose }) {
 
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-avatar">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
+            <div className="sidebar-avatar">{resolvedUser?.name?.charAt(0)?.toUpperCase() || 'U'}</div>
             <div className="sidebar-user-info">
-              <p className="sidebar-user-name">{user?.name || 'Usuário'}</p>
+              <p className="sidebar-user-name">{resolvedUser?.name || 'Usuário'}</p>
               <p className="sidebar-user-role">{isMaster ? 'Administrador Master' : isStudent ? 'Aluno' : 'Personal Trainer'}</p>
             </div>
           </div>

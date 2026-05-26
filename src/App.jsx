@@ -1,7 +1,9 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { getCurrentUser, hydrateSessionUser, logout, getTheme, setTheme as saveTheme, getUserPlan } from './lib/storage';
+import { getCurrentUser, hydrateSessionUser, logout, getTheme, setTheme as saveTheme, getUserPlan, fetchSupabaseRowByEmail, normalizeEmail, isStudentPremium, resolveStudentProfileForAuthUser } from './lib/storage';
 import { supabase } from './lib/supabaseClient';
+import { stripSensitiveSessionFields } from './lib/security';
+import { AuthContext, ToastContext, ThemeContext, useAuth } from './lib/app-context';
 import Landing from './pages/Landing';
 import Auth from './pages/Auth';
 import Upgrade from './pages/Upgrade';
@@ -21,23 +23,12 @@ import Toast from './components/Toast';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
 
-// Auth Context
-const AuthContext = createContext(null);
-export const useAuth = () => useContext(AuthContext);
-
-// Toast Context
-const ToastContext = createContext(null);
-export const useToast = () => useContext(ToastContext);
-
-// Theme Context
-const ThemeContext = createContext(null);
-export const useTheme = () => useContext(ThemeContext);
-
 function ProtectedRoute({ children, allowedType, requirePlan }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/auth" replace />;
   
-  if (allowedType && user.type !== allowedType) {
+  const allowedTypes = Array.isArray(allowedType) ? allowedType : (allowedType ? [allowedType] : null);
+  if (allowedTypes && !allowedTypes.includes(user.type)) {
     return <Navigate to={user.type === 'aluno' ? '/aluno' : user.type === 'master' ? '/master' : user.type === 'personal' ? '/dashboard' : '/auth'} replace />;
   }
   
@@ -67,8 +58,8 @@ function DashboardLayout({ children }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       {isOffline && (
-        <div style={{ background: '#FF4500', color: '#fff', textAlign: 'center', padding: '6px', fontSize: '0.85rem', fontWeight: 600, zIndex: 9999 }}>
-          ⚠️ Você está offline. As modificações serão sincronizadas quando reconectar.
+        <div style={{ background: '#FF4500', color: '#fff', textAlign: 'center', padding: '6px', fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.35, overflowWrap: 'break-word', boxSizing: 'border-box', width: '100%', zIndex: 9999 }}>
+          ⚠️ Você está offline. Algumas funções, como IA, login e sincronização, precisam de internet. Quando a conexão voltar, atualize a página para sincronizar.
         </div>
       )}
       <div style={{ display: 'flex', flex: 1 }}>
@@ -113,24 +104,24 @@ export default function App() {
         }
 
         if (activeEmail) {
-          const cleanEmail = activeEmail.toLowerCase().trim();
+          const cleanEmail = normalizeEmail(activeEmail);
           
           let profile = null;
           const localUser = getCurrentUser();
           // Buscar perfil em students e users sem pedir Accept: object, evitando 406 e sessão parcial.
-          const stuRes = await supabase.from('students').select('*').eq('email', cleanEmail).limit(1);
-          const studentRow = Array.isArray(stuRes?.data) ? stuRes.data[0] : null;
-          if (studentRow) {
-            profile = hydrateSessionUser({ ...localUser, ...studentRow, type: 'aluno' });
+          const studentRow = await fetchSupabaseRowByEmail('students', cleanEmail);
+          if (studentRow || localUser?.type === 'aluno') {
+            profile = await resolveStudentProfileForAuthUser({ ...localUser, ...(studentRow || {}), email: cleanEmail, type: 'aluno' }, { persist: true });
           } else {
-            const usrRes = await supabase.from('users').select('*').eq('email', cleanEmail).limit(1);
-            const userRow = Array.isArray(usrRes?.data) ? usrRes.data[0] : null;
+            const userRow = await fetchSupabaseRowByEmail('users', cleanEmail);
             if (userRow) profile = hydrateSessionUser({ ...localUser, ...userRow });
           }
 
           if (profile) {
-            setUser(profile);
-            localStorage.setItem('powerfit_current_user', JSON.stringify(profile));
+            if (profile.type === 'aluno') profile.isPremium = isStudentPremium(profile);
+            const safeProfile = stripSensitiveSessionFields(profile);
+            setUser(safeProfile);
+            localStorage.setItem('powerfit_current_user', JSON.stringify(safeProfile));
           } else {
             let localUser = getCurrentUser();
             if (localUser) {
@@ -143,7 +134,7 @@ export default function App() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         let localUser = getCurrentUser();
         if (localUser) {
           if (localUser.weight == 55) localUser.weight = 0;
@@ -181,6 +172,7 @@ export default function App() {
   };
 
   const isStudent = user?.type === 'aluno';
+  const hasStudentPremium = isStudentPremium(user);
 
   if (loadingApp) {
     return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>Carregando Perfil...</div>;
@@ -200,18 +192,18 @@ export default function App() {
                   <Route path="/dashboard" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>} />
                   <Route path="/students" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Students /></DashboardLayout></ProtectedRoute>} />
                   <Route path="/workouts" element={<ProtectedRoute><DashboardLayout><Workouts /></DashboardLayout></ProtectedRoute>} />
-                  <Route path="/evolution" element={<ProtectedRoute requirePlan><DashboardLayout><Evolution /></DashboardLayout></ProtectedRoute>} />
-                  <Route path="/schedule" element={<ProtectedRoute requirePlan><DashboardLayout><Schedule /></DashboardLayout></ProtectedRoute>} />
-                  <Route path="/photos" element={<ProtectedRoute requirePlan><DashboardLayout><Photos /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/evolution" element={<ProtectedRoute allowedType={['personal', 'aluno']} requirePlan><DashboardLayout><Evolution /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/schedule" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Schedule /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/photos" element={<ProtectedRoute allowedType={['personal', 'aluno']} requirePlan><DashboardLayout><Photos /></DashboardLayout></ProtectedRoute>} />
                   <Route path="/history/:studentId" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><StudentHistory /></DashboardLayout></ProtectedRoute>} />
                   <Route path="/meu-plano" element={<ProtectedRoute allowedType="personal"><DashboardLayout><MyPlan /></DashboardLayout></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute><DashboardLayout><Settings /></DashboardLayout></ProtectedRoute>} />
                   {/* Student Route */}
                   <Route path="/aluno" element={<ProtectedRoute allowedType="aluno"><DashboardLayout><StudentDashboard /></DashboardLayout></ProtectedRoute>} />
-                  <Route path="/ai-chat" element={<ProtectedRoute allowedType="aluno">{user?.isPremium === true ? <DashboardLayout><StudentDashboard /></DashboardLayout> : <Navigate to="/aluno" replace />}</ProtectedRoute>} />
+                  <Route path="/ai-chat" element={<ProtectedRoute allowedType="aluno">{hasStudentPremium ? <DashboardLayout><StudentDashboard /></DashboardLayout> : <Navigate to="/aluno" replace />}</ProtectedRoute>} />
                   <Route path="/body-targets" element={
                     <ProtectedRoute allowedType="aluno">
-                      {user?.isPremium === true ? (
+                      {hasStudentPremium ? (
                         <DashboardLayout><BodyTargets /></DashboardLayout>
                       ) : (
                         <Navigate to="/aluno" replace />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { activatePremium, isUserVIP } from '../lib/storage';
-import { useAuth, useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { Crown, Sparkles, Shield, Bot, Target, FileText, Zap, ArrowLeft, Check } from 'lucide-react';
 
 const FEATURES = [

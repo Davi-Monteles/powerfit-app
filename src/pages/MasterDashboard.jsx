@@ -1,22 +1,15 @@
-import { useState, useEffect } from 'react';
-import { getUsers, getStudents, getWorkouts } from '../lib/storage';
+import { getUsers, getStudents } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { TrendingUp, Users, Zap, DollarSign, Dumbbell, Crown } from 'lucide-react';
 import { getPlans } from '../lib/storage';
 
 
 export default function MasterDashboard() {
-  const [personals, setPersonals] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [workouts, setWorkouts] = useState([]);
-  const { revision } = useStorageSync();
+  useStorageSync();
 
-  useEffect(() => {
-    const allUsers = getUsers();
-    setPersonals(allUsers.filter(u => u.type === 'personal' || u.type === 'master'));
-    setStudents(getStudents());
-    setWorkouts(getWorkouts());
-  }, [revision]);
+  const allUsers = getUsers();
+  const personals = allUsers.filter(u => u.type === 'personal' || u.type === 'master');
+  const students = getStudents();
 
 
   const premiumStudentsCount = students.filter(s => s.isPremium).length;

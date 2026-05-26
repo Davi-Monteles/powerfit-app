@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getStudents, getSchedule, saveScheduleEvent, deleteScheduleEvent, forceSyncData } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { useToast } from '../App';
+import { useToast } from '../lib/app-context';
 import { CalendarDays, Plus, X, Trash2, Clock, ChevronLeft, ChevronRight, User } from 'lucide-react';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -9,32 +9,20 @@ const WEEKDAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const EVENT_COLORS = { treino: '#FF6B35', avaliacao: '#3B82F6', consulta: '#22C55E', outro: '#22d3ee' };
 
 export default function Schedule() {
-  const [students, setStudents] = useState([]);
-  const [schedule, setSchedule] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const addToast = useToast();
-  const { revision } = useStorageSync('schedule');
+  useStorageSync('schedule');
 
   const emptyForm = { title: '', studentId: '', date: '', time: '08:00', type: 'treino', notes: '' };
   const [form, setForm] = useState(emptyForm);
 
-  const loadCachedData = () => {
-    setStudents(getStudents());
-    setSchedule(getSchedule());
-  };
+  const students = getStudents();
+  const schedule = getSchedule();
 
   useEffect(() => {
-    loadCachedData();
-  }, [revision]);
-
-  useEffect(() => {
-    let active = true;
-    forceSyncData().finally(() => {
-      if (active) loadCachedData();
-    });
-    return () => { active = false; };
+    forceSyncData().catch(() => {});
   }, []);
 
   const year = currentDate.getFullYear();
@@ -59,7 +47,6 @@ export default function Schedule() {
     if (!form.title || !form.date) { addToast('Preencha título e data', 'error'); return; }
     await saveScheduleEvent(form);
     await forceSyncData();
-    setSchedule(getSchedule());
     setShowModal(false);
     addToast('Evento salvo!', 'success');
   };
@@ -67,7 +54,6 @@ export default function Schedule() {
   const handleDelete = async (id) => {
     await deleteScheduleEvent(id);
     await forceSyncData();
-    setSchedule(getSchedule());
     addToast('Evento removido', 'info');
   };
 

@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
-import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData, isStudentAIWorkout } from '../lib/storage';
+import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData, isStudentAIWorkout, fetchWorkoutsForStudent } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { generateWorkoutPDF } from '../lib/pdf';
-import { useAuth, useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
 
-const exerciseCategories = ['Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps', 'Perna', 'Glúteo', 'Abdômen', 'Cardio', 'Funcional'];
-
 export default function Workouts() {
-  const [workouts, setWorkouts] = useState([]);
-  const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -17,58 +13,86 @@ export default function Workouts() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const { user } = useAuth();
   const addToast = useToast();
-  const { revision } = useStorageSync('workouts');
+  useStorageSync('workouts');
+  const isStudentView = user?.type === 'aluno';
+  const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
 
   const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '' };
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
   const [form, setForm] = useState(emptyForm);
 
-  const getVisibleWorkouts = () => {
-    const allWorkouts = getWorkouts();
-    return user?.type === 'personal'
-      ? allWorkouts.filter(workout => !isStudentAIWorkout(workout))
-      : allWorkouts;
-  };
-
-  const loadCachedData = () => {
-    setWorkouts(getVisibleWorkouts());
-    setStudents(getStudents());
-  };
-
-  useEffect(() => {
-    loadCachedData();
-  }, [revision, user?.id, user?.type]);
+  const allWorkouts = getWorkouts();
+  const cachedWorkouts = user?.type === 'personal'
+    ? allWorkouts.filter(workout => !isStudentAIWorkout(workout))
+    : allWorkouts;
+  const students = getStudents();
+  const workouts = isStudentView && freshStudentWorkouts ? freshStudentWorkouts : cachedWorkouts;
 
   useEffect(() => {
     let active = true;
-    forceSyncData().finally(() => {
-      if (active) loadCachedData();
-    });
+    const loadFreshData = async () => {
+      try {
+        if (user?.type === 'aluno') {
+          const studentId = user.studentId || user.student_id || user.id;
+          const freshWorkouts = await fetchWorkoutsForStudent(studentId, user.personalId || user.personal_id, user.email);
+          if (active) {
+            setFreshStudentWorkouts(freshWorkouts);
+          }
+          return;
+        }
+
+        await forceSyncData();
+      } catch (error) {
+        if (import.meta.env.DEV) console.warn('[Workouts] Student workouts sync warning:', error);
+        if (active) setFreshStudentWorkouts(null);
+      }
+    };
+
+    loadFreshData();
     return () => { active = false; };
-  }, [user?.id, user?.type]);
+  }, [user?.id, user?.type, user?.studentId, user?.student_id, user?.personalId, user?.personal_id, user?.email]);
 
   const filtered = workouts.filter(w => (w.name || '').toLowerCase().includes(search.toLowerCase()));
+  const activeFiltered = isStudentView ? filtered.filter(w => w.status !== 'archived') : filtered;
+  const archivedFiltered = isStudentView ? filtered.filter(w => w.status === 'archived') : [];
 
-  const openNew = () => { setForm(emptyForm); setEditingWorkout(null); setShowModal(true); };
-  const openEdit = (workout) => { setForm({ ...workout }); setEditingWorkout(workout); setShowModal(true); };
+  const openNew = () => {
+    if (isStudentView) return;
+    setForm(emptyForm);
+    setEditingWorkout(null);
+    setShowModal(true);
+  };
+  const openEdit = (workout) => {
+    if (isStudentView) return;
+    setForm({ ...workout });
+    setEditingWorkout(workout);
+    setShowModal(true);
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isStudentView) return;
     if (!form.name) { addToast('Nome do treino é obrigatório', 'error'); return; }
     if (form.exercises.some(ex => !ex.name)) { addToast('Preencha o nome de todos os exercícios', 'error'); return; }
     await saveWorkout(form);
     await forceSyncData();
-    setWorkouts(getVisibleWorkouts());
     setShowModal(false);
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (workoutOrId) => {
+    if (user?.type === 'aluno') {
+      addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
+      return;
+    }
+
+    const workout = typeof workoutOrId === 'object' ? workoutOrId : workouts.find(item => item.id === workoutOrId);
+    const id = workout?.id || workoutOrId;
+
     if (!confirm('Tem certeza que deseja excluir este treino?')) return;
     await deleteWorkout(id);
-    await forceSyncData();
-    setWorkouts(getVisibleWorkouts());
-    addToast('Treino excluído', 'info');
+    if (!isStudentView) await forceSyncData();
+    addToast('Treino excluido', 'info');
   };
 
   const addExercise = () => {
@@ -104,27 +128,27 @@ export default function Workouts() {
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
-        <h2><Dumbbell size={24} style={{ color: 'var(--primary)' }} /> Treinos</h2>
+        <h2><Dumbbell size={24} style={{ color: 'var(--primary)' }} /> {isStudentView ? 'Meus Treinos' : 'Treinos'}</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="search-bar">
             <Search />
             <input className="form-input" placeholder="Buscar treino..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Novo Treino</button>
+          {!isStudentView && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Novo Treino</button>}
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {activeFiltered.length === 0 ? (
         <div className="empty-state">
           <Dumbbell size={64} />
           <h3>Nenhum treino encontrado</h3>
-          <p>{search ? 'Tente outro termo de busca' : 'Clique em "Novo Treino" para criar'}</p>
-          {!search && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Criar Treino</button>}
+          <p>{search ? 'Tente outro termo de busca' : isStudentView ? (archivedFiltered.length > 0 ? 'Você não possui treinos ativos no momento.' : 'Seu personal ainda não atribuiu treinos para você.') : 'Clique em "Novo Treino" para criar'}</p>
+          {!search && !isStudentView && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Criar Treino</button>}
         </div>
       ) : (
         <div className="workouts-grid">
-          {filtered.map(workout => (
-            <div key={workout.id} className="card card-glow workout-card">
+          {activeFiltered.map(workout => (
+            <div key={workout.scheduleId || workout.id} className="card card-glow workout-card">
               <div className="workout-header">
                 <div>
                   <h4 style={{ fontSize: '1.05rem', marginBottom: '4px' }}>{workout.name}</h4>
@@ -150,9 +174,11 @@ export default function Workouts() {
               </div>
 
               <div className="workout-actions">
-                <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
-                  <MessageCircle size={14} /> WhatsApp
-                </button>
+                {!isStudentView && (
+                  <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
+                    <MessageCircle size={14} /> WhatsApp
+                  </button>
+                )}
                 <button className="btn btn-secondary btn-sm" onClick={() => {
                   try {
                     generateWorkoutPDF(workout);
@@ -164,16 +190,66 @@ export default function Workouts() {
                 }}>
                   <FileDown size={14} /> PDF
                 </button>
-                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>
-                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout.id)} style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                {!isStudentView && (
+                  <>
+                    <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>
+                  </>
+                )}
+                {!isStudentView && (
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {archivedFiltered.length > 0 && (
+        <>
+          <h3 style={{ margin: '28px 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Dumbbell size={20} style={{ color: 'var(--text-muted)' }} /> Arquivados
+          </h3>
+          <div className="workouts-grid archived-workouts-grid">
+            {archivedFiltered.map(workout => (
+              <div key={workout.scheduleId || workout.id} className="card workout-card archived-workout-card">
+                <div className="workout-header">
+                  <div>
+                    <h4 style={{ fontSize: '1.05rem', marginBottom: '4px' }}>{workout.name}</h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{workout.description}</p>
+                  </div>
+                  <span className="badge badge-secondary">Arquivado</span>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                  {workout.exercises?.length || 0} exercício(s)
+                </p>
+                <div className="workout-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={() => {
+                    try {
+                      generateWorkoutPDF(workout);
+                      addToast('PDF gerado!', 'success');
+                    } catch (err) {
+                      console.warn('PDF Error, fallback to alert', err);
+                      alert('📄 Relatório gerado (modo demo offline)');
+                    }
+                  }}>
+                    <FileDown size={14} /> PDF
+                  </button>
+                  {!isStudentView && (
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Workout Creation/Edit Modal */}
-      {showModal && (
+      {showModal && !isStudentView && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
@@ -256,7 +332,7 @@ export default function Workouts() {
       )}
 
       {/* WhatsApp Send Modal */}
-      {showWhatsAppModal && (
+      {showWhatsAppModal && !isStudentView && (
         <div className="modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
@@ -298,6 +374,7 @@ export default function Workouts() {
         }
         
         .workout-card { display: flex; flex-direction: column; gap: 14px; }
+        .archived-workout-card { opacity: 0.72; }
         
         .workout-header {
           display: flex;
