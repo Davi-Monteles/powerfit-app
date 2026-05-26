@@ -1,4 +1,4 @@
-const CACHE_NAME = 'powerfit-pwa-v1';
+const CACHE_NAME = 'powerfit-pwa-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,16 +6,34 @@ const ASSETS_TO_CACHE = [
   '/favicon.svg'
 ];
 
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.allSettled(
+    ASSETS_TO_CACHE.map(url => cache.add(url).catch(err => console.log('Failed to cache', url, err)))
+  );
+
+  let indexResponse;
+  try {
+    indexResponse = await fetch('/index.html', { cache: 'reload' });
+  } catch (err) {
+    console.log('Failed to fetch app shell assets', err);
+    return;
+  }
+
+  if (!indexResponse.ok) return;
+
+  const html = await indexResponse.clone().text();
+  await cache.put('/index.html', indexResponse);
+
+  const assetUrls = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(match => match[1]);
+  await Promise.allSettled(
+    assetUrls.map(url => cache.add(url).catch(err => console.log('Failed to cache app asset', url, err)))
+  );
+}
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      // Don't fail the whole install if one file fails to cache
-      return Promise.allSettled(
-        ASSETS_TO_CACHE.map(url => cache.add(url).catch(err => console.log('Failed to cache', url, err)))
-      );
-    })
-  );
+  event.waitUntil(cacheAppShell());
 });
 
 self.addEventListener('activate', (event) => {
@@ -61,7 +79,7 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(async () => {
         if (event.request.mode === 'navigate') {
-          const cachedShell = await caches.match('/index.html') || await caches.match('/');
+          const cachedShell = await caches.match('/index.html', { ignoreVary: true }) || await caches.match('/', { ignoreVary: true });
           if (cachedShell) return cachedShell;
 
           try {
@@ -75,7 +93,7 @@ self.addEventListener('fetch', (event) => {
           }
         }
 
-        const cachedResponse = await caches.match(event.request);
+        const cachedResponse = await caches.match(event.request, { ignoreVary: true }) || await caches.match(url.pathname, { ignoreVary: true });
         if (cachedResponse) return cachedResponse;
 
         return new Response('Offline', {
