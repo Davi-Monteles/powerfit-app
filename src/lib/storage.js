@@ -2180,6 +2180,25 @@ export function isUserVIP(email) {
   return isVipUser(email);
 }
 
+export function activateStudentProDemo(profile = null) {
+  const source = profile || getCurrentUser();
+  const target = source?.id || source?.studentId || source?.student_id || source?.email;
+  if (!target) return false;
+
+  const activated = activatePremium(target);
+  if (!activated) return false;
+
+  const resolved = resolveStudentProfileFromCache(getCurrentUser() || source);
+  if (!resolved) return activated;
+
+  const premiumSession = {
+    ...resolved,
+    isPremium: isStudentPremium(resolved),
+  };
+  setCurrentUser(premiumSession);
+  return getCurrentUser();
+}
+
 export function activatePremium(userId) {
   const users = getItem(KEYS.USERS) || [];
   const students = getItem(KEYS.STUDENTS) || [];

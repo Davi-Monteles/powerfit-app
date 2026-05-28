@@ -30,15 +30,15 @@ export default function Sidebar({ open, onClose }) {
   ];
 
   const resolvedUser = isStudent ? resolveStudentProfileFromCache(user) : user;
-  const isVip = isStudentPremium(resolvedUser);
+  const hasProAccess = isStudentPremium(resolvedUser);
 
   const studentNavItems = [
     { path: '/aluno', label: 'Meu Painel', icon: LayoutDashboard },
     { path: '/workouts', label: 'Meus Treinos', icon: Dumbbell },
     { path: '/evolution', label: 'Minha Evolucao', icon: TrendingUp },
     { path: '/photos', label: 'Minhas Fotos', icon: Camera },
-    { path: '/ai-chat', label: 'Treinador IA', icon: Zap, restricted: !isVip },
-    { path: '/body-targets', label: 'Alvos Corporais', icon: Target, restricted: !isVip },
+    { path: '/ai-chat', label: 'Treinador IA', icon: Zap, restricted: !hasProAccess },
+    { path: '/body-targets', label: 'Alvos Corporais', icon: Target, restricted: !hasProAccess },
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
 
@@ -82,7 +82,7 @@ export default function Sidebar({ open, onClose }) {
           {navItems.map(item => {
             if (item.restricted) {
               return (
-                <div key={item.label} className="sidebar-link disabled" title="Apenas para usuários VIP" onClick={() => { navigate('/upgrade'); addToast('🔒 Recurso VIP', 'error'); onClose(); }} style={{ cursor: 'pointer', pointerEvents: 'auto' }}>
+                <div key={item.label} className="sidebar-link disabled" title="Apenas para alunos PRO" onClick={() => { navigate('/upgrade'); addToast('Recurso PRO', 'error'); onClose(); }} style={{ cursor: 'pointer', pointerEvents: 'auto' }}>
                   <item.icon size={20} />
                   <span>{item.label}</span>
                   <Lock size={14} style={{ marginLeft: 'auto', opacity: 0.6 }} />

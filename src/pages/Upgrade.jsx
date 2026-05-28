@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { activatePremium, isUserVIP } from '../lib/storage';
+import { activatePremium, activateStudentProDemo, isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
 import { useAuth, useToast } from '../lib/app-context';
 import { Crown, Sparkles, Shield, Bot, Target, FileText, Zap, ArrowLeft, Check } from 'lucide-react';
 
@@ -8,7 +8,7 @@ const FEATURES = [
   { icon: Bot, label: 'IA Personal Trainer', desc: 'Assistente inteligente com dicas personalizadas' },
   { icon: FileText, label: 'Relatórios PDF', desc: 'Exporte seus dados e evolução em PDF' },
   { icon: Shield, label: 'Sem Anúncios', desc: 'Experiência limpa e sem interrupções' },
-  { icon: Zap, label: 'Suporte Prioritário', desc: 'Atendimento VIP com resposta rápida' },
+  { icon: Zap, label: 'Suporte Prioritário', desc: 'Atendimento PRO com resposta rápida' },
 ];
 
 export default function Upgrade() {
@@ -17,17 +17,20 @@ export default function Upgrade() {
   const addToast = useToast();
   const [loading, setLoading] = useState(false);
 
-  // If already VIP, redirect
-  if (currentUser && isUserVIP(currentUser.email)) {
+  const resolvedUser = currentUser?.type === 'aluno' ? resolveStudentProfileFromCache(currentUser) : currentUser;
+  const hasProAccess = currentUser?.type === 'aluno' && isStudentPremium(resolvedUser);
+
+  // If already PRO, redirect
+  if (currentUser && hasProAccess) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.badge}>
             <Crown size={20} color="#fbbf24" />
-            <span style={{ color: '#fbbf24', fontWeight: 700 }}>VIP ATIVO</span>
+            <span style={{ color: '#fbbf24', fontWeight: 700 }}>PRO ATIVO</span>
           </div>
-          <h1 style={styles.title}>Você já é VIP! 🎉</h1>
-          <p style={styles.subtitle}>Todos os recursos premium estão desbloqueados.</p>
+          <h1 style={styles.title}>Você já é PRO!</h1>
+          <p style={styles.subtitle}>Todos os recursos PRO estão desbloqueados.</p>
           <button onClick={() => navigate(currentUser.type === 'aluno' ? '/aluno' : '/dashboard')} style={styles.btnPrimary}>
             Voltar ao Dashboard
           </button>
@@ -40,19 +43,21 @@ export default function Upgrade() {
     if (!currentUser) { navigate('/auth'); return; }
     setLoading(true);
     
-    const result = activatePremium(currentUser.id || currentUser.email);
+    const result = currentUser.type === 'aluno'
+      ? activateStudentProDemo(currentUser)
+      : activatePremium(currentUser.id || currentUser.email);
     if (result && typeof result === 'object') {
       // activatePremium returned updated user — update React state
       setCurrentUser(result);
-      addToast?.('🎉 VIP ativado com sucesso!', 'success');
+      addToast?.('PRO demo ativado com sucesso!', 'success');
       setTimeout(() => navigate(currentUser.type === 'aluno' ? '/aluno' : '/dashboard'), 500);
     } else if (result === true) {
       // Updated but wasn't current user
       setCurrentUser(JSON.parse(localStorage.getItem('powerfit_current_user') || '{}'));
-      addToast?.('🎉 VIP ativado!', 'success');
+      addToast?.('PRO demo ativado!', 'success');
       setTimeout(() => navigate(currentUser.type === 'aluno' ? '/aluno' : '/dashboard'), 500);
     } else {
-      addToast?.('Erro ao ativar VIP. Tente novamente.', 'error');
+      addToast?.('Erro ao ativar PRO. Tente novamente.', 'error');
       setLoading(false);
     }
   };
@@ -63,7 +68,7 @@ export default function Upgrade() {
         {/* Header */}
         <div style={styles.badge}>
           <Crown size={18} color="#67e8f9" />
-          <span style={{ color: '#67e8f9', fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.05em' }}>POWERFIT VIP</span>
+          <span style={{ color: '#67e8f9', fontWeight: 700, fontSize: '0.8rem', letterSpacing: '0.05em' }}>POWERFIT PRO</span>
         </div>
         
         <h1 style={styles.title}>Desbloqueie todo o potencial</h1>
@@ -116,7 +121,7 @@ export default function Upgrade() {
         </button>
         
         <p style={{ color: '#4b5563', fontSize: '0.72rem', textAlign: 'center', marginTop: '8px' }}>
-          7 dias de garantia • Cancele quando quiser
+          Ativacao local de demo, sem pagamento real
         </p>
 
         {/* Back */}

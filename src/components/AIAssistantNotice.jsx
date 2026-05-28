@@ -3,11 +3,11 @@ import { Bot, Sparkles, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function AIAssistantNotice({ student, workouts, evolution, onClick }) {
-  const isVip = student?.isPremium === true;
+  const hasProAccess = student?.isPremium === true;
   const navigate = useNavigate();
 
   const handleNoticeClick = (e) => {
-    if (!isVip) {
+    if (!hasProAccess) {
       navigate('/upgrade');
     } else {
       if (onClick) onClick(e);
@@ -43,18 +43,18 @@ export default function AIAssistantNotice({ student, workouts, evolution, onClic
   return (
     <div 
       onClick={handleNoticeClick}
-      className={`card animate-slide-up ${isVip ? 'cursor-pointer' : 'cursor-pointer'}`}
+      className={`card animate-slide-up ${hasProAccess ? 'cursor-pointer' : 'cursor-pointer'}`}
       style={{ 
-        background: isVip 
+        background: hasProAccess
           ? 'linear-gradient(135deg, rgba(34, 211, 238, 0.1) 0%, rgba(34, 211, 238, 0.05) 100%)' 
           : 'rgba(255, 255, 255, 0.05)', 
-        border: "1px solid " + (isVip ? 'rgba(34, 211, 238, 0.3)' : 'rgba(255, 255, 255, 0.1)'),
+        border: "1px solid " + (hasProAccess ? 'rgba(34, 211, 238, 0.3)' : 'rgba(255, 255, 255, 0.1)'),
         position: 'relative',
         overflow: 'hidden',
         padding: '20px',
         marginBottom: '24px',
-        filter: isVip ? 'none' : 'grayscale(1)',
-        opacity: isVip ? 1 : 0.7,
+        filter: hasProAccess ? 'none' : 'grayscale(1)',
+        opacity: hasProAccess ? 1 : 0.7,
         transition: 'all 0.3s ease'
       }}
     >
@@ -63,30 +63,30 @@ export default function AIAssistantNotice({ student, workouts, evolution, onClic
           width: '48px', 
           height: '48px', 
           borderRadius: '12px', 
-          background: isVip ? 'linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%)' : '#4b5563',
+          background: hasProAccess ? 'linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%)' : '#4b5563',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center',
-          boxShadow: isVip ? '0 4px 12px rgba(6, 182, 212, 0.2)' : 'none',
+          boxShadow: hasProAccess ? '0 4px 12px rgba(6, 182, 212, 0.2)' : 'none',
           flexShrink: 0
         }}>
-          {isVip ? <Sparkles color="white" size={24} /> : <Lock color="white" size={20} />}
+          {hasProAccess ? <Sparkles color="white" size={24} /> : <Lock color="white" size={20} />}
         </div>
         
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: isVip ? '#67e8f9' : 'var(--text-muted)' }}>
-              PowerFit AI {isVip && <span style={{ fontSize: '0.65rem', background: 'rgba(34, 211, 238, 0.2)', padding: '1px 6px', borderRadius: '8px', color: '#cffafe', marginLeft: '4px' }}>BETA</span>}
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: hasProAccess ? '#67e8f9' : 'var(--text-muted)' }}>
+              PowerFit AI {hasProAccess && <span style={{ fontSize: '0.65rem', background: 'rgba(34, 211, 238, 0.2)', padding: '1px 6px', borderRadius: '8px', color: '#cffafe', marginLeft: '4px' }}>BETA</span>}
             </h4>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.4', margin: 0 }}>
-            {isVip 
+            {hasProAccess
               ? (notice || "Sua assistente pessoal está pronta para analisar seu treino e sugerir ajustes.")
-              : "Funcionalidade exclusiva para alunos VIP. Clique para assinar."}
+              : "Funcionalidade exclusiva para alunos PRO. Clique para ativar."}
           </p>
         </div>
         
-        {isVip && <Bot size={24} style={{ opacity: 0.2, color: '#22d3ee' }} />}
+        {hasProAccess && <Bot size={24} style={{ opacity: 0.2, color: '#22d3ee' }} />}
       </div>
     </div>
   );

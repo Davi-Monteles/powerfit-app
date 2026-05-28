@@ -12,8 +12,8 @@ export default function PremiumLobby({ onUpgrade }) {
     setLoading(true);
     // Para alunos independentes, usamos a funcionalidade de simulação da demo
     setTimeout(() => {
-      addToast('Redirecionando para o Checkout Seguro...', 'success');
-      // Na demo, simulamos o sucesso após 2 segundos
+      addToast('Ativando acesso PRO demo...', 'success');
+      // Na demo, simulamos a liberacao local sem pagamento real.
       setTimeout(() => {
         onUpgrade();
         addToast('Assinatura PRO ativada! Bem-vindo ao próximo nível.', 'success');
@@ -82,10 +82,10 @@ export default function PremiumLobby({ onUpgrade }) {
               onClick={handleSubscribe}
               disabled={loading}
             >
-              {loading ? 'Processando...' : '💳 Assinar e Desbloquear'}
+              {loading ? 'Ativando...' : 'Ativar PRO Demo'}
             </button>
             <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-               <Shield size={14} /> Transação Criptografada
+               <Shield size={14} /> Fluxo demo local, sem pagamento real
             </div>
           </div>
         </div>

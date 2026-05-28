@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/app-context';
-import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule } from '../lib/storage';
+import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule, activateStudentProDemo } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, DownloadCloud } from 'lucide-react';
 
@@ -18,7 +18,7 @@ const metrics = [
 ];
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
+  const { user, login: setAuthUser } = useAuth();
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [personal, setPersonal] = useState(null);
@@ -152,10 +152,18 @@ export default function StudentDashboard() {
   };
 
   const handleAIClick = () => {
-    if (student?.isPremium === true) {
+    if (isStudentPremium(student)) {
       setIsAIChatOpen(true);
     } else {
       navigate('/upgrade');
+    }
+  };
+
+  const handleStudentProUpgrade = () => {
+    const upgraded = activateStudentProDemo(student || user);
+    if (upgraded && typeof upgraded === 'object') {
+      setAuthUser(upgraded);
+      setStudent({ ...upgraded, isPremium: isStudentPremium(upgraded) });
     }
   };
 
@@ -196,6 +204,7 @@ export default function StudentDashboard() {
 
   const calories = calculateCalories(tmb, student.daysPerWeek || 3);
   const activeWorkouts = workouts.filter(w => w.status !== 'archived');
+  const hasPremiumAccess = isStudentPremium(student);
 
   const chartData = evolution.map(e => ({
     ...e,
@@ -213,7 +222,7 @@ export default function StudentDashboard() {
         <h2>
           <LayoutDashboard size={24} style={{ color: "var(--primary)" }} />
           Olá, {student.name ? student.name.split(" ")[0] : "Atleta"}! 👋
-          {student.isPremium && <span className="badge badge-primary" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>⭐ PRO</span>}
+          {hasPremiumAccess && <span className="badge badge-primary" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>⭐ PRO</span>}
         </h2>
         {canInstall && (
           <button
@@ -269,10 +278,10 @@ export default function StudentDashboard() {
       )}
 
 
-      {isStudentPremium(student) ? (
+      {hasPremiumAccess ? (
         <>
           <AIAssistantNotice 
-            student={student} 
+            student={{ ...student, isPremium: true }}
             workouts={workouts} 
             evolution={evolution} 
             onClick={handleAIClick}
@@ -281,7 +290,7 @@ export default function StudentDashboard() {
           <AIChat student={student} isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
         </>
       ) : (
-        <PremiumLobby onUpgrade={() => setStudent(prev => ({...prev, isPremium: true}))} />
+        <PremiumLobby onUpgrade={handleStudentProUpgrade} />
       )}
 
 
