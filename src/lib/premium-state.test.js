@@ -137,3 +137,17 @@ assert.equal(isStudentPremium(resolvedAfterReload), true);
 assert.equal(resolvedAfterReload.personalId, personalId);
 assert.equal(resolvedAfterReload.personal_id, personalId);
 assert.deepEqual(resolvedAfterReload.workoutIds, ['workout-1']);
+
+const upgradeSource = readFileSync(new URL('../pages/Upgrade.jsx', import.meta.url), 'utf8');
+const premiumLobbySource = readFileSync(new URL('../pages/PremiumLobby.jsx', import.meta.url), 'utf8');
+const myPlanSource = readFileSync(new URL('../pages/MyPlan.jsx', import.meta.url), 'utf8');
+const pricingPlansSource = readFileSync(new URL('../pages/PricingPlans.jsx', import.meta.url), 'utf8');
+
+assert.match(upgradeSource, /Modo demonstração/);
+assert.match(upgradeSource, /Ativação simulada para validação/);
+assert.doesNotMatch(upgradeSource, /<span>Assinar Agora<\/span>/);
+assert.match(premiumLobbySource, /Modo demonstração/);
+assert.match(premiumLobbySource, /Pagamento real ainda não conectado/);
+assert.match(myPlanSource, /Plano do aluno em modo demo/);
+assert.match(pricingPlansSource, /Modo demo do aluno/);
+assert.match(pricingPlansSource, /Pagamento real ainda não conectado/);

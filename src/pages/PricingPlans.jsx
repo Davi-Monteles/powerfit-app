@@ -103,7 +103,11 @@ export default function PricingPlans() {
                   <span className="plan-decimal">,{priceDisplay.split(',')[1] || '00'}</span>
                   <span className="plan-period">/mês</span>
                 </div>
-                
+
+                {activeType === 'aluno' && plan.id === 'student-pro' && (
+                  <p className="plan-info plan-demo-note">Modo demo do aluno: Pagamento real ainda não conectado.</p>
+                )}
+
                 {plan.studentLimit !== undefined && (
                   <p className="plan-info">
                     {plan.studentLimit === Infinity ? '∞ Alunos ilimitados' : `Até ${plan.studentLimit} alunos`}
@@ -131,6 +135,8 @@ export default function PricingPlans() {
                     <span className="plan-loading">Ativando...</span>
                   ) : isCurrent ? (
                     'Plano Ativo'
+                  ) : activeType === 'aluno' ? (
+                    <>Ativar Demo {plan.name} <ArrowRight size={16} /></>
                   ) : (
                     <>Selecionar {plan.name} <ArrowRight size={16} /></>
                   )}
@@ -142,7 +148,7 @@ export default function PricingPlans() {
 
         <div className="pricing-footer">
           <Shield size={16} />
-          <span>Pagamento seguro • Cancele a qualquer momento • Sem taxas ocultas</span>
+          <span>{activeType === 'aluno' ? 'Modo demo do aluno • Pagamento real ainda não conectado' : 'Pagamento seguro • Cancele a qualquer momento • Sem taxas ocultas'}</span>
         </div>
       </div>
 
@@ -387,6 +393,15 @@ export default function PricingPlans() {
         .plan-info.highlight {
           background: rgba(59,130,246,0.1);
           color: #3B82F6;
+        }
+
+        .plan-demo-note {
+          background: rgba(6,182,212,0.08);
+          border: 1px solid rgba(6,182,212,0.18);
+          color: #67e8f9;
+          font-size: 0.74rem;
+          line-height: 1.35;
+          margin-bottom: 12px;
         }
 
         .plan-features {

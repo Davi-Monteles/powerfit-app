@@ -60,8 +60,9 @@ export default function PremiumLobby({ onUpgrade }) {
         <div style={{ flex: '1 1 300px' }}>
           <div className="card" style={{ padding: '32px', textAlign: 'center', border: '2px solid var(--primary)', position: 'sticky', top: '24px' }}>
             <div className="badge badge-primary" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', fontWeight: 'bold' }}>EXCLUSIVO ALUNOS</div>
-            
+
             <h3 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{plan.name}</h3>
+            <div className="badge" style={{ display: 'inline-flex', marginBottom: '12px', background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.22)', color: '#67e8f9', fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Modo demonstração</div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>Autonomia total nos seus treinos.</p>
             
             <div style={{ fontSize: '3.5rem', fontWeight: '800', margin: '0 0 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
@@ -70,6 +71,9 @@ export default function PremiumLobby({ onUpgrade }) {
               <span style={{ fontSize: '1.2rem', marginTop: '10px' }}>,{plan.price.toString().split('.')[1] || '00'}</span>
               <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginTop: 'auto', marginBottom: '10px', marginLeft: '4px' }}>/mês</span>
             </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4, margin: '-12px 0 24px' }}>
+              Ativação simulada para validação. Pagamento real ainda não conectado.
+            </p>
 
             <ul style={{ textAlign: 'left', marginBottom: '32px', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.95rem' }}>
               <li style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><CheckCircle size={18} className="text-success" /> IA Trainer 24h Disponível</li>

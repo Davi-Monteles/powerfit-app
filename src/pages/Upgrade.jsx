@@ -76,6 +76,7 @@ export default function Upgrade() {
 
         {/* Price */}
         <div style={styles.priceBox}>
+          <div style={styles.demoPill}>Modo demonstração</div>
           <span style={{ fontSize: '0.9rem', color: '#9ca3af' }}>por apenas</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', justifyContent: 'center' }}>
             <span style={{ fontSize: '1rem', color: '#9ca3af' }}>R$</span>
@@ -83,6 +84,7 @@ export default function Upgrade() {
             <span style={{ fontSize: '1.2rem', color: '#9ca3af' }}>,90</span>
             <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>/mês</span>
           </div>
+          <p style={styles.demoCopy}>Ativação simulada para validação. Pagamento real ainda não conectado.</p>
         </div>
 
         {/* Features */}
@@ -115,7 +117,7 @@ export default function Upgrade() {
           ) : (
             <>
               <Sparkles size={18} />
-              <span>Assinar Agora</span>
+              <span>Ativar PRO Demo</span>
             </>
           )}
         </button>
@@ -181,6 +183,27 @@ const styles = {
     borderRadius: '16px',
     background: 'rgba(34, 211, 238, 0.08)',
     border: '1px solid rgba(34, 211, 238, 0.15)',
+  },
+  demoPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px 10px',
+    borderRadius: '999px',
+    marginBottom: '10px',
+    background: 'rgba(103, 232, 249, 0.1)',
+    border: '1px solid rgba(103, 232, 249, 0.18)',
+    color: '#67e8f9',
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+  },
+  demoCopy: {
+    color: '#94a3b8',
+    fontSize: '0.72rem',
+    lineHeight: 1.4,
+    margin: '10px 0 0',
   },
   featureList: {
     display: 'flex',

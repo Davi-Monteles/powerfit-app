@@ -208,7 +208,7 @@ export default function MyPlan() {
           }}>
             <ShieldCheck color="#f97316" size={20} />
             <span style={{ fontSize: '0.82rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fdba74' }}>
-              Voce possui acesso VIP Vitalicio — Todos os recursos desbloqueados
+              Plano do aluno em modo demo — acesso PRO ativo por ativacao simulada
             </span>
           </div>
         )}
@@ -465,14 +465,23 @@ export default function MyPlan() {
           gap: '10px',
           opacity: 0.4,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
-            <ShieldCheck size={16} color="#22c55e" />
-            <span>Pagamento 100% seguro via Mercado Pago</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
-            <Lock size={14} />
-            <span>Dados protegidos com criptografia SSL</span>
-          </div>
+          {user?.type === 'aluno' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', textAlign: 'center' }}>
+              <ShieldCheck size={16} color="#22c55e" />
+              <span>Plano do aluno em modo demo; pagamento real ainda não conectado</span>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+                <ShieldCheck size={16} color="#22c55e" />
+                <span>Pagamento 100% seguro via Mercado Pago</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
+                <Lock size={14} />
+                <span>Dados protegidos com criptografia SSL</span>
+              </div>
+            </>
+          )}
           <p style={{ margin: 0, fontSize: '0.65rem', letterSpacing: '0.15em', fontWeight: 700, textTransform: 'uppercase' }}>
             PowerFit Academy — v4.0
           </p>
