@@ -1181,25 +1181,7 @@ export function getCurrentUser() {
 }
 
 export async function logout() {
-  // P0 FIX: Atomic "scorched earth" logout — wipe ALL powerfit_ keys
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith('powerfit_')) {
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach(key => localStorage.removeItem(key));
-
-  // Also clear any non-prefixed app keys (workouts_*, atlas targets, backup)
-  const extraKeys = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (key.startsWith('workouts_') || key.startsWith('powerfit_'))) {
-      extraKeys.push(key);
-    }
-  }
-  extraKeys.forEach(key => localStorage.removeItem(key));
+  localStorage.removeItem(KEYS.CURRENT_USER);
 
   // Sign out from Supabase server-side (invalidates refresh token)
   try {
