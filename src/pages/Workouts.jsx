@@ -4,6 +4,7 @@ import { useStorageSync } from '../lib/useStorageSync';
 import { generateWorkoutPDF } from '../lib/pdf';
 import { useAuth, useToast } from '../lib/app-context';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
+import ExerciseMedia from '../components/ExerciseMedia';
 
 export default function Workouts() {
   const [search, setSearch] = useState('');
@@ -160,6 +161,7 @@ export default function Workouts() {
               <div className="workout-exercises">
                 {workout.exercises?.map((ex, i) => (
                   <div key={i} className="workout-exercise">
+                    <ExerciseMedia exercise={ex} />
                     <span className="exercise-number">{i + 1}</span>
                     <div className="exercise-info">
                       <strong>{ex.name}</strong>
@@ -397,6 +399,67 @@ export default function Workouts() {
           background: rgba(255,255,255,0.02);
           border-radius: var(--radius-sm);
         }
+
+        .exercise-media {
+          width: 58px;
+          min-width: 58px;
+          height: 58px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(255,107,53,0.16), rgba(6,182,212,0.08));
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+          flex-shrink: 0;
+        }
+
+        .exercise-media img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .exercise-media small {
+          position: absolute;
+          left: 4px;
+          right: 4px;
+          bottom: 3px;
+          padding: 2px 4px;
+          border-radius: 999px;
+          background: rgba(0,0,0,0.52);
+          color: rgba(255,255,255,0.88);
+          font-size: 0.55rem;
+          line-height: 1;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .exercise-media-fallback {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          width: 100%;
+          height: 100%;
+          color: rgba(255,255,255,0.9);
+        }
+
+        .exercise-media-fallback span {
+          max-width: 48px;
+          font-size: 0.54rem;
+          font-weight: 700;
+          line-height: 1.05;
+          text-align: center;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
         
         .exercise-number {
           width: 22px;
@@ -415,6 +478,8 @@ export default function Workouts() {
         .exercise-info {
           display: flex;
           flex-direction: column;
+          flex: 1;
+          min-width: 0;
         }
         
         .exercise-info strong { font-size: 0.85rem; }
