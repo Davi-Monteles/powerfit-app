@@ -401,6 +401,16 @@ export default function Workouts() {
         }
 
         .exercise-media {
+          width: 166px;
+          min-width: 166px;
+          min-height: 58px;
+          display: flex;
+          align-items: stretch;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
+        .exercise-media-thumb {
           width: 58px;
           min-width: 58px;
           height: 58px;
@@ -413,31 +423,17 @@ export default function Workouts() {
           justify-content: center;
           align-items: center;
           position: relative;
-          flex-shrink: 0;
         }
 
-        .exercise-media img {
+        .exercise-media-thumb-needs_asset {
+          background: linear-gradient(135deg, rgba(6,182,212,0.14), rgba(255,255,255,0.04));
+        }
+
+        .exercise-media-thumb img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
-        }
-
-        .exercise-media small {
-          position: absolute;
-          left: 4px;
-          right: 4px;
-          bottom: 3px;
-          padding: 2px 4px;
-          border-radius: 999px;
-          background: rgba(0,0,0,0.52);
-          color: rgba(255,255,255,0.88);
-          font-size: 0.55rem;
-          line-height: 1;
-          text-align: center;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
 
         .exercise-media-fallback {
@@ -459,6 +455,42 @@ export default function Workouts() {
           text-align: center;
           text-transform: uppercase;
           letter-spacing: 0.02em;
+        }
+
+        .exercise-media-meta {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 2px;
+          color: var(--text-muted);
+        }
+
+        .exercise-media-meta strong {
+          color: var(--text-primary);
+          font-size: 0.68rem;
+          line-height: 1.1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .exercise-media-meta span {
+          font-size: 0.62rem;
+          line-height: 1.1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .exercise-media-meta p {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          margin: 1px 0 0;
+          font-size: 0.58rem;
+          line-height: 1.15;
         }
         
         .exercise-number {
@@ -555,6 +587,9 @@ export default function Workouts() {
 
         @media (max-width: 768px) {
           .workouts-grid { grid-template-columns: 1fr; }
+          .workout-exercise { align-items: flex-start; }
+          .exercise-media { width: 128px; min-width: 128px; }
+          .exercise-media-meta p { display: none; }
           .exercise-form-row { grid-template-columns: repeat(2, 1fr); }
         }
       `}</style>
