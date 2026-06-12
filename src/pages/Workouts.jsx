@@ -397,7 +397,14 @@ export default function Workouts() {
           gap: 10px;
           padding: 8px 12px;
           background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.04);
           border-radius: var(--radius-sm);
+          transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        .workout-exercise:hover {
+          background: rgba(255,255,255,0.035);
+          border-color: rgba(255,255,255,0.08);
         }
 
         .exercise-media {
@@ -414,9 +421,10 @@ export default function Workouts() {
           width: 58px;
           min-width: 58px;
           height: 58px;
-          border: 1px solid rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.1);
           border-radius: 14px;
           background: linear-gradient(135deg, rgba(255,107,53,0.16), rgba(6,182,212,0.08));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px rgba(0,0,0,0.12);
           overflow: hidden;
           display: flex;
           flex-direction: column;
@@ -425,8 +433,12 @@ export default function Workouts() {
           position: relative;
         }
 
-        .exercise-media-thumb-needs_asset {
+        .exercise-media-thumb-future {
           background: linear-gradient(135deg, rgba(6,182,212,0.14), rgba(255,255,255,0.04));
+        }
+
+        .exercise-media-thumb-placeholder {
+          background: linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,255,255,0.035));
         }
 
         .exercise-media-thumb img {
@@ -441,15 +453,19 @@ export default function Workouts() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 3px;
+          gap: 5px;
           width: 100%;
           height: 100%;
           color: rgba(255,255,255,0.9);
         }
 
-        .exercise-media-fallback span {
-          max-width: 48px;
-          font-size: 0.54rem;
+        .exercise-media-status {
+          max-width: 50px;
+          padding: 2px 5px;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 999px;
+          background: rgba(0,0,0,0.22);
+          font-size: 0.48rem;
           font-weight: 700;
           line-height: 1.05;
           text-align: center;
@@ -466,31 +482,47 @@ export default function Workouts() {
           color: var(--text-muted);
         }
 
-        .exercise-media-meta strong {
-          color: var(--text-primary);
-          font-size: 0.68rem;
+        .exercise-media-badges {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 3px;
+        }
+
+        .exercise-media-badge {
+          max-width: 84px;
+          padding: 2px 5px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 999px;
+          background: rgba(255,255,255,0.045);
+          color: var(--text-muted);
+          font-size: 0.56rem;
+          font-weight: 700;
           line-height: 1.1;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        .exercise-media-meta span {
-          font-size: 0.62rem;
-          line-height: 1.1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        .exercise-media-badge-primary {
+          border-color: rgba(255,107,53,0.28);
+          background: rgba(255,107,53,0.1);
+          color: var(--text-primary);
+        }
+
+        .exercise-media-badge-level {
+          max-width: 72px;
+          color: rgba(255,255,255,0.72);
         }
 
         .exercise-media-meta p {
           display: -webkit-box;
-          -webkit-line-clamp: 2;
+          -webkit-line-clamp: 1;
           -webkit-box-orient: vertical;
           overflow: hidden;
-          margin: 1px 0 0;
+          margin: 2px 0 0;
           font-size: 0.58rem;
-          line-height: 1.15;
+          line-height: 1.2;
         }
         
         .exercise-number {
@@ -589,6 +621,8 @@ export default function Workouts() {
           .workouts-grid { grid-template-columns: 1fr; }
           .workout-exercise { align-items: flex-start; }
           .exercise-media { width: 128px; min-width: 128px; }
+          .exercise-media-badge { max-width: 66px; }
+          .exercise-media-badge-level { display: none; }
           .exercise-media-meta p { display: none; }
           .exercise-form-row { grid-template-columns: repeat(2, 1fr); }
         }
