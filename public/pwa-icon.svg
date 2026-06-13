@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PowerFit</title>
+  <desc id="desc">Ícone do app PowerFit</desc>
+  <rect width="512" height="512" rx="112" fill="#0B1120" />
+  <circle cx="256" cy="256" r="176" fill="#111827" stroke="#263244" stroke-width="18" />
+  <path d="M286 72 160 278h86l-28 162 134-218h-88l22-150Z" fill="#FF6B35" />
+  <path d="M196 278h50l-11 66 68-122h-39l9-62-77 118Z" fill="#FFB089" opacity="0.68" />
+  <path d="M116 360c42 48 89 72 140 72s99-24 140-72" fill="none" stroke="#3B82F6" stroke-width="18" stroke-linecap="round" opacity="0.55" />
+</svg>

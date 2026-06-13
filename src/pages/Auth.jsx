@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { registerUser, loginUser, hydrateSessionUser, getUserPlan, fetchSupabaseRowByEmail, resolveStudentProfileForAuthUser } from '../lib/storage';
 import { stripSensitiveSessionFields } from '../lib/security';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
+import PwaInstallHint from '../components/PwaInstallHint';
 
 export default function Auth({ onLogin }) {
   const [tab, setTab] = useState('login');
@@ -141,6 +142,8 @@ export default function Auth({ onLogin }) {
           <button className={"tab " + (tab === 'login' ? 'active' : '')} onClick={() => { setTab('login'); setError(''); }}>Entrar</button>
           <button className={"tab " + (tab === 'register' ? 'active' : '')} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
         </div>
+
+        {tab === 'login' && <PwaInstallHint />}
 
         {error && <div className="auth-error">{error}</div>}
 
@@ -313,6 +316,71 @@ export default function Auth({ onLogin }) {
           font-size: 0.85rem;
           margin-bottom: 16px;
           text-align: center;
+        }
+
+        .pwa-install-hint {
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          align-items: center;
+          gap: 10px;
+          margin: 0 0 16px;
+          padding: 10px 12px;
+          border: 1px solid rgba(255,107,53,0.22);
+          border-radius: var(--radius-md);
+          background: linear-gradient(135deg, rgba(255,107,53,0.09), rgba(59,130,246,0.06));
+        }
+
+        .pwa-install-hint-icon {
+          color: var(--primary);
+          flex-shrink: 0;
+        }
+
+        .pwa-install-hint strong {
+          display: block;
+          color: var(--text-primary);
+          font-size: 0.78rem;
+          line-height: 1.25;
+        }
+
+        .pwa-install-hint span {
+          display: block;
+          color: var(--text-muted);
+          font-size: 0.72rem;
+          line-height: 1.3;
+          margin-top: 2px;
+        }
+
+        .pwa-install-hint button {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          border: 0;
+          border-radius: 8px;
+          padding: 7px 9px;
+          background: var(--gradient-primary);
+          color: white;
+          font: inherit;
+          font-size: 0.72rem;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .pwa-install-hint button:disabled {
+          opacity: 0.7;
+          cursor: wait;
+        }
+
+        @media (max-width: 420px) {
+          .pwa-install-hint {
+            grid-template-columns: auto 1fr;
+          }
+
+          .pwa-install-hint button {
+            grid-column: 1 / -1;
+            justify-content: center;
+            width: 100%;
+          }
         }
         
         .input-icon-wrapper {

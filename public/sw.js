@@ -1,9 +1,10 @@
-const CACHE_NAME = 'powerfit-pwa-v2';
+const CACHE_NAME = 'powerfit-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/pwa-icon.svg'
 ];
 
 async function cacheAppShell() {
@@ -60,7 +61,16 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/node_modules/') ||
     url.pathname.includes('__vite');
 
-  if (!isHttpRequest || isViteDevServer || isViteDevTraffic || event.request.url.includes('supabase.co')) return;
+  const isSensitiveRequest =
+    event.request.url.includes('supabase.co') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/auth/') ||
+    url.pathname.includes('ai-chat');
+  const isStaticAsset =
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith('/assets/') || ASSETS_TO_CACHE.includes(url.pathname));
+
+  if (!isHttpRequest || isViteDevServer || isViteDevTraffic || isSensitiveRequest) return;
 
   event.respondWith(
     fetch(event.request)
@@ -69,7 +79,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        if (response && response.status === 200 && response.type === 'basic') {
+        if (isStaticAsset && response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, responseToCache);
@@ -93,8 +103,10 @@ self.addEventListener('fetch', (event) => {
           }
         }
 
-        const cachedResponse = await caches.match(event.request, { ignoreVary: true }) || await caches.match(url.pathname, { ignoreVary: true });
-        if (cachedResponse) return cachedResponse;
+        if (isStaticAsset) {
+          const cachedResponse = await caches.match(event.request, { ignoreVary: true }) || await caches.match(url.pathname, { ignoreVary: true });
+          if (cachedResponse) return cachedResponse;
+        }
 
         return new Response('Offline', {
           status: 503,
