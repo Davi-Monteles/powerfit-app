@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/app-context';
 import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule, activateStudentProDemo } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, DownloadCloud } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, DownloadCloud, ClipboardList, ShieldAlert } from 'lucide-react';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import PremiumLobby from './PremiumLobby';
 import AIAssistantNotice from '../components/AIAssistantNotice';
 import AIChat from '../components/AIChat';
 import usePWAInstall from '../hooks/usePWAInstall';
+import { getStudentIntake, getStudentIntakeSummary, getStudentRiskFlags, hasCompletedStudentIntake } from '../lib/student-intake';
+import StudentIntake from './StudentIntake';
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
@@ -26,6 +28,7 @@ export default function StudentDashboard() {
   const [evolution, setEvolution] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [showStudentIntake, setShowStudentIntake] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [pendingCompletionId, setPendingCompletionId] = useState(null);
   const workoutsInitRef = useRef(false);
@@ -205,6 +208,10 @@ export default function StudentDashboard() {
   const calories = calculateCalories(tmb, student.daysPerWeek || 3);
   const activeWorkouts = workouts.filter(w => w.status !== 'archived');
   const hasPremiumAccess = isStudentPremium(student);
+  const studentIntake = getStudentIntake(activeStudentId);
+  const hasIntake = hasCompletedStudentIntake(activeStudentId);
+  const intakeSummary = getStudentIntakeSummary(studentIntake);
+  const intakeRiskFlags = getStudentRiskFlags(studentIntake);
 
   const chartData = evolution.map(e => ({
     ...e,
@@ -215,6 +222,10 @@ export default function StudentDashboard() {
     .filter(event => event.date)
     .sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`) - new Date(`${b.date}T${b.time || '00:00'}`))
     .slice(0, 3);
+
+  if (showStudentIntake) {
+    return <StudentIntake onBack={() => setShowStudentIntake(false)} />;
+  }
 
   return (
     <div className="page-container animate-fade-in">
@@ -276,6 +287,32 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: '24px', padding: '18px', borderColor: hasIntake ? 'rgba(34,197,94,0.28)' : 'rgba(255,107,53,0.28)', background: hasIntake ? 'rgba(34,197,94,0.04)' : 'rgba(255,107,53,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: '1 1 280px' }}>
+            <div className="stat-icon" style={{ width: '42px', height: '42px', background: hasIntake ? 'linear-gradient(135deg, #22C55E, #16A34A)' : 'var(--gradient-primary)', flexShrink: 0 }}>
+              <ClipboardList size={21} color="white" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '1rem', marginBottom: '4px' }}>{hasIntake ? 'Avaliação inicial concluída' : 'Preencher avaliação inicial'}</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                {hasIntake
+                  ? `${intakeSummary.goal} · ${intakeSummary.availability} · ${intakeSummary.experienceLevel}`
+                  : 'Informe objetivo, rotina, equipamentos e pontos de segurança para uma demo mais completa.'}
+              </p>
+              {hasIntake && intakeRiskFlags.length > 0 && (
+                <p style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)', fontSize: '0.8rem', marginTop: '8px', fontWeight: 700 }}>
+                  <ShieldAlert size={14} /> Atenção: revisar com profissional antes de treinar.
+                </p>
+              )}
+            </div>
+          </div>
+          <button type="button" className={hasIntake ? 'btn btn-outline' : 'btn btn-primary'} onClick={() => setShowStudentIntake(true)}>
+            {hasIntake ? 'Editar avaliação' : 'Preencher avaliação'}
+          </button>
+        </div>
+      </div>
 
 
       {hasPremiumAccess ? (
