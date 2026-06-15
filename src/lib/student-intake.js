@@ -108,12 +108,40 @@ export function getStudentIntakeSummary(intake) {
 
   return {
     goal: normalized.goal || 'Nao informado',
+    daysPerWeek: normalized.daysPerWeek || 'Nao informado',
+    sessionDuration: normalized.sessionDuration || 'Nao informado',
     availability: normalized.daysPerWeek && normalized.sessionDuration
       ? `${normalized.daysPerWeek} dias/semana, ${normalized.sessionDuration} por treino`
       : 'Nao informado',
     experienceLevel: normalized.experienceLevel || 'Nao informado',
     equipment: normalized.equipment.length ? normalized.equipment.join(', ') : 'Nao informado',
     muscleFocus: normalized.muscleFocus.length ? normalized.muscleFocus.join(', ') : 'Nao informado',
+    trainingHistory: normalized.trainingHistory || 'Nao informado',
+    limitations: normalized.limitations || '',
+    notes: normalized.notes || '',
     attentionPoints: flags.length ? flags : ['Sem pontos de atenção informados.'],
+  };
+}
+
+export function getStudentIntakeProfile(student = {}, intake = null) {
+  const summary = getStudentIntakeSummary(intake);
+  const hasIntake = !!intake && isComplete(intake);
+  const riskFlags = getStudentRiskFlags(intake);
+  const needsProfessionalReview = riskFlags.length > 0;
+
+  return {
+    ...summary,
+    studentName: student?.name || student?.fullName || student?.email || 'Aluno',
+    hasIntake,
+    needsProfessionalReview,
+    status: needsProfessionalReview
+      ? 'Atenção: revisar com profissional antes de treinar'
+      : hasIntake
+        ? 'Avaliação inicial concluída'
+        : 'Avaliação inicial pendente',
+    statusTone: needsProfessionalReview ? 'warning' : hasIntake ? 'success' : 'muted',
+    attentionPoints: hasIntake || needsProfessionalReview
+      ? summary.attentionPoints
+      : ['Este aluno ainda não preencheu a avaliação inicial.'],
   };
 }

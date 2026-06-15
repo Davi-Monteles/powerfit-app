@@ -4,6 +4,7 @@ import { useAuth, useToast } from '../lib/app-context';
 import { getStudents, getWorkouts, getEvolution, getScheduleByDate, getUserPlan, getStudentUsage, isVipUser, saveNotification, forceSyncData } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell } from 'lucide-react';
+import StudentIntakeSummary from '../components/StudentIntakeSummary';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -89,6 +90,10 @@ export default function Dashboard() {
             <p>{isVip ? 'Acesso Total' : plan ? 'Plano Ativo' : 'Escolher Plano'}</p>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <StudentIntakeSummary students={students} />
       </div>
 
       <div className="dashboard-main-grid">
