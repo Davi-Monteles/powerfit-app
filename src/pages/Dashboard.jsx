@@ -5,6 +5,7 @@ import { getStudents, getWorkouts, getEvolution, getScheduleByDate, getUserPlan,
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell } from 'lucide-react';
 import StudentIntakeSummary from '../components/StudentIntakeSummary';
+import WorkoutDraftCard from '../components/WorkoutDraftCard';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -92,8 +93,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div className="dashboard-intake-grid">
         <StudentIntakeSummary students={students} />
+        <WorkoutDraftCard students={students} />
       </div>
 
       <div className="dashboard-main-grid">
@@ -163,6 +165,14 @@ export default function Dashboard() {
           gap: 10px;
         }
 
+        .dashboard-intake-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 20px;
+          margin-bottom: 20px;
+          max-width: 100%;
+        }
+
         .dashboard-action-btn {
           width: 100%;
           min-width: 0;
@@ -177,6 +187,7 @@ export default function Dashboard() {
         }
 
         @media (max-width: 768px) {
+          .dashboard-intake-grid,
           .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
         }
 
