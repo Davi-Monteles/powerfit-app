@@ -22,6 +22,7 @@ import Sidebar from './components/Sidebar';
 import Toast from './components/Toast';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
+import { getPreviewDemoNotice } from './lib/preview-environment';
 
 function ProtectedRoute({ children, allowedType, requirePlan }) {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ function ProtectedRoute({ children, allowedType, requirePlan }) {
 function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const previewNotice = getPreviewDemoNotice();
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -57,6 +59,11 @@ function DashboardLayout({ children }) {
   
   return (
     <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
+      {previewNotice && (
+        <div style={{ background: 'rgba(15, 23, 42, 0.96)', color: '#CBD5E1', textAlign: 'center', padding: '5px 10px', fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.35, borderBottom: '1px solid rgba(148, 163, 184, 0.18)', boxSizing: 'border-box', width: '100%', zIndex: 9999 }}>
+          {previewNotice}
+        </div>
+      )}
       {isOffline && (
         <div style={{ background: '#FF4500', color: '#fff', textAlign: 'center', padding: '6px', fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.35, overflowWrap: 'break-word', boxSizing: 'border-box', width: '100%', zIndex: 9999 }}>
           ⚠️ Você está offline. Algumas funções, como IA, login e sincronização, precisam de internet. Quando a conexão voltar, atualize a página para sincronizar.
