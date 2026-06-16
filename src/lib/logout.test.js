@@ -48,7 +48,7 @@ const loadStorage = new AsyncFunction(
   'sanitizeImportData',
   'stripSensitiveSessionFields',
   `${storageSource}
-return { logout };`
+return { logout, importData };`
 );
 
 const supabase = {
@@ -60,7 +60,7 @@ const supabase = {
   },
 };
 
-const { logout } = await loadStorage(
+const { logout, importData } = await loadStorage(
   false,
   supabase,
   () => {},
@@ -95,3 +95,16 @@ assert.equal(supabase.auth.signOutCalled, true);
 localStorage.clear();
 
 assert.equal(localStorage.length, 0);
+
+importData(JSON.stringify({
+  version: '2.0',
+  users: [],
+  students: [],
+  studentIntakes: {
+    'powerfit_student_intake_student-1': { goal: 'Hipertrofia', completed: true },
+    'student-2': { goal: 'Condicionamento', completed: true },
+  },
+}));
+
+assert.deepEqual(JSON.parse(localStorage.getItem('powerfit_student_intake_student-1')), { goal: 'Hipertrofia', completed: true });
+assert.deepEqual(JSON.parse(localStorage.getItem('powerfit_student_intake_student-2')), { goal: 'Condicionamento', completed: true });

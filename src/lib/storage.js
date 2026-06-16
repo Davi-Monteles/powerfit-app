@@ -47,6 +47,7 @@ const KEYS = {
 
 const STUDENT_AI_SOURCE = 'student_ai';
 const STUDENT_AI_NOTE_MARKER = 'source:student_ai';
+const STUDENT_INTAKE_KEY_PREFIX = 'powerfit_student_intake_';
 
 // ========== GENERIC HELPERS ==========
 function getItem(key) {
@@ -58,6 +59,34 @@ function getItem(key) {
 
 function setItem(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getStudentIntakesForBackup() {
+  const intakes = {};
+  if (typeof localStorage === 'undefined') return intakes;
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(STUDENT_INTAKE_KEY_PREFIX)) continue;
+
+    try {
+      intakes[key] = JSON.parse(localStorage.getItem(key));
+    } catch {
+      // Ignore malformed local demo records during backup export.
+    }
+  }
+
+  return intakes;
+}
+
+function importStudentIntakes(studentIntakes = {}) {
+  if (!studentIntakes || typeof studentIntakes !== 'object' || Array.isArray(studentIntakes)) return;
+
+  Object.entries(studentIntakes).forEach(([key, value]) => {
+    const storageKey = key.startsWith(STUDENT_INTAKE_KEY_PREFIX) ? key : `${STUDENT_INTAKE_KEY_PREFIX}${key}`;
+    if (!storageKey.startsWith(STUDENT_INTAKE_KEY_PREFIX)) return;
+    localStorage.setItem(storageKey, JSON.stringify(value));
+  });
 }
 
 export function normalizeEmail(email) {
@@ -2123,6 +2152,7 @@ export function exportAllData() {
     evolution: getItem(KEYS.EVOLUTION),
     schedule: getItem(KEYS.SCHEDULE),
     photos: getItem(KEYS.PHOTOS),
+    studentIntakes: getStudentIntakesForBackup(),
   });
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2143,6 +2173,7 @@ export function importData(jsonString) {
     if (data.evolution) setItem(KEYS.EVOLUTION, data.evolution);
     if (data.schedule) setItem(KEYS.SCHEDULE, data.schedule);
     if (data.photos) setItem(KEYS.PHOTOS, data.photos);
+    if (data.studentIntakes) importStudentIntakes(data.studentIntakes);
     const importedCurrentUser = data.powerfit_current_user || data.current_user || data.currentUser;
     if (importedCurrentUser) setItem(KEYS.CURRENT_USER, importedCurrentUser);
     return true;
