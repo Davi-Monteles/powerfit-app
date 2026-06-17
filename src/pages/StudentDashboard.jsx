@@ -12,6 +12,13 @@ import AIChat from '../components/AIChat';
 import usePWAInstall from '../hooks/usePWAInstall';
 import { getStudentIntake, getStudentIntakeSummary, getStudentRiskFlags, hasCompletedStudentIntake } from '../lib/student-intake';
 import StudentIntake from './StudentIntake';
+import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
+
+const completionRecorders = {
+  pending: markWorkoutPending,
+  completed: markWorkoutCompleted,
+  archived: markWorkoutCompleted,
+};
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
@@ -38,6 +45,22 @@ export default function StudentDashboard() {
   const activeStudentId = student?.id || student?.studentId || student?.student_id;
   const studentPersonalId = student?.personalId;
   const studentEmail = student?.email;
+
+  const getPublishedWorkoutStatus = (workout) => {
+    if (!student) return null;
+    if (!workout) return null;
+    if (workout.source !== 'rascunho_anamnese') return null;
+    const completion = getWorkoutCompletion(student, workout.id);
+    return completion ? completion.status : null;
+  };
+
+  const isWorkoutCompleted = (workout) => workout?.status === 'completed' || getPublishedWorkoutStatus(workout) === 'completed';
+
+  const recordPublishedWorkoutStatus = (workout, status) => {
+    const action = completionRecorders[status];
+    if (!student || !workout || workout.source !== 'rascunho_anamnese' || !action) return;
+    action(student, workout);
+  };
 
   // Safe workout init — runs once per mount via ref guard
   useEffect(() => {
@@ -129,6 +152,8 @@ export default function StudentDashboard() {
 
   const applyWorkoutStatus = (scheduleId, status) => {
     if (!student) return;
+    const workout = workouts.find(w => w.scheduleId === scheduleId);
+    recordPublishedWorkoutStatus(workout, status);
     updateWorkoutScheduleStatus(student.id || student.studentId || student.student_id, scheduleId, status);
     setStudent(prev => {
       if (!prev) return null;
@@ -146,12 +171,20 @@ export default function StudentDashboard() {
 
   const handleToggleWorkout = (workout) => {
     if (!workout?.scheduleId) return;
-    if (workout.status === 'completed') {
+    if (isWorkoutCompleted(workout)) {
       applyWorkoutStatus(workout.scheduleId, 'pending');
       return;
     }
 
     setPendingCompletionId(workout.scheduleId);
+  };
+
+  const handleToggleGeneralWorkout = (workout) => {
+    if (!student) return;
+    if (!workout || workout.source !== 'rascunho_anamnese') return;
+    const nextStatus = isWorkoutCompleted(workout) ? 'pending' : 'completed';
+    recordPublishedWorkoutStatus(workout, nextStatus);
+    setWorkouts(prev => prev.map(item => item.id === workout.id ? { ...item, status: nextStatus } : item));
   };
 
   const handleAIClick = () => {
@@ -405,7 +438,7 @@ export default function StudentDashboard() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {dayWorkouts.map((w, idx) => {
-                    const isCompleted = w.status === 'completed';
+                    const isCompleted = isWorkoutCompleted(w);
                     return (
                       <div key={w.scheduleId || idx} style={{ 
                         padding: '12px', 
@@ -456,15 +489,28 @@ export default function StudentDashboard() {
             <Dumbbell size={20} style={{ color: 'var(--primary)' }} /> Treinos Gerais
           </h3>
           <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
-            {activeWorkouts.filter(w => w.day === 'Geral').map((w, idx) => (
-              <div key={w.scheduleId || idx} className="card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                  <h5 style={{ margin: 0, fontSize: '0.95rem' }}>{w.name}</h5>
-                  {w.source === 'rascunho_anamnese' && <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>Publicado</span>}
+            {activeWorkouts.filter(w => w.day === 'Geral').map((w, idx) => {
+              const isCompleted = isWorkoutCompleted(w);
+              return (
+                <div key={w.scheduleId || w.id || idx} className="card" style={{ padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                    <h5 style={{ margin: 0, fontSize: '0.95rem', color: isCompleted ? '#22c55e' : 'inherit' }}>{w.name} {isCompleted && '✓'}</h5>
+                    {w.source === 'rascunho_anamnese' && <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>Publicado</span>}
+                    {w.source === 'rascunho_anamnese' && !w.scheduleId && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleGeneralWorkout(w)}
+                        className={isCompleted ? "btn btn-sm btn-success" : "btn btn-sm btn-outline"}
+                        style={{ padding: "2px 10px", fontSize: "0.7rem", height: "auto", minHeight: "26px" }}
+                      >
+                        {isCompleted ? 'Pendente' : 'Concluir'}
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{w.description}</p>
                 </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{w.description}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

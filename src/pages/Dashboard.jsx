@@ -7,6 +7,7 @@ import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell, MessageCircle } from 'lucide-react';
 import StudentIntakeSummary from '../components/StudentIntakeSummary';
 import WorkoutDraftCard from '../components/WorkoutDraftCard';
+import { getWorkoutCompletionsForTrainer } from '../lib/workout-completions';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -23,6 +24,9 @@ export default function Dashboard() {
   const evolution = getEvolution();
   const today = new Date().toISOString().split('T')[0];
   const todaySchedule = getScheduleByDate(today);
+  const workoutCompletions = getWorkoutCompletionsForTrainer(user?.id);
+  const recentWorkoutCompletions = workoutCompletions.slice(0, 5);
+  const completedWorkoutCount = workoutCompletions.filter(item => item.status === 'completed').length;
   const stats = {
     students: students.length,
     workouts: workouts.length,
@@ -70,12 +74,21 @@ export default function Dashboard() {
     }
   };
 
-  const formatLeadDate = (value) => {
+  const formatDisplayDate = (value) => {
     if (!value) return 'Sem data';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Sem data';
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
+
+  const getCompletionSummary = (completion) => {
+    if (completion.status === 'completed') return `Concluído em ${formatDisplayDate(completion.completedAt)}`;
+    return `Pendente desde ${formatDisplayDate(completion.updatedAt)}`;
+  };
+
+  const getCompletionBadge = (completion) => completion.status === 'completed'
+    ? { className: 'badge badge-success', label: 'concluído' }
+    : { className: 'badge badge-secondary', label: 'pendente' };
 
   return (
     <div className="page-container animate-fade-in">
@@ -170,6 +183,33 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="card dashboard-adherence-card" style={{ padding: '24px', marginTop: '20px' }}>
+        <div className="dashboard-adherence-header">
+          <div>
+            <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Dumbbell size={18} style={{ color: 'var(--primary)' }} /> Adesão / Treinos concluídos</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '4px' }}>{completedWorkoutCount} treino(s) concluído(s) neste navegador.</p>
+          </div>
+        </div>
+        {recentWorkoutCompletions.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '16px 0' }}>
+            Nenhum treino publicado foi marcado como concluído ainda.
+          </p>
+        ) : (
+          <div className="dashboard-adherence-list">
+            {recentWorkoutCompletions.map(completion => (
+              <div className="dashboard-adherence-row" key={completion.id}>
+                <div>
+                  <strong>{completion.studentName || 'Aluno'}</strong>
+                  <p>{completion.workoutName || 'Treino'}</p>
+                  <small>{getCompletionSummary(completion)}</small>
+                </div>
+                <span className={getCompletionBadge(completion).className}>{getCompletionBadge(completion).label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="card dashboard-leads-card" style={{ padding: '24px', marginTop: '20px' }}>
         <div className="dashboard-leads-header">
           <div>
@@ -189,7 +229,7 @@ export default function Dashboard() {
                 <div>
                   <strong>{lead.name || 'Interessado sem nome'}</strong>
                   <p>{lead.objective || 'Objetivo nao informado'}</p>
-                  <small>{formatLeadDate(lead.date)} • {lead.source}</small>
+                  <small>{formatDisplayDate(lead.date)} • {lead.source}</small>
                 </div>
                 <select className="form-select" value={lead.status} onChange={event => handleLeadStatusChange(lead.id, event.target.value)} aria-label={`Status de ${lead.name || 'interessado'}`}>
                   <option value="novo">novo</option>
@@ -238,6 +278,8 @@ export default function Dashboard() {
         }
 
         .dashboard-leads-header,
+        .dashboard-adherence-header,
+        .dashboard-adherence-row,
         .dashboard-lead-row {
           display: flex;
           justify-content: space-between;
@@ -245,13 +287,15 @@ export default function Dashboard() {
           gap: 14px;
         }
 
-        .dashboard-leads-list {
+        .dashboard-leads-list,
+        .dashboard-adherence-list {
           display: grid;
           gap: 10px;
           margin-top: 16px;
         }
 
-        .dashboard-lead-row {
+        .dashboard-lead-row,
+        .dashboard-adherence-row {
           padding: 12px 14px;
           border: 1px solid var(--border);
           border-radius: var(--radius-md);
@@ -264,7 +308,18 @@ export default function Dashboard() {
           margin: 4px 0;
         }
 
+        .dashboard-adherence-row p {
+          color: var(--text-secondary);
+          font-size: 0.84rem;
+          margin: 4px 0;
+        }
+
         .dashboard-lead-row small {
+          color: var(--text-muted);
+          font-size: 0.75rem;
+        }
+
+        .dashboard-adherence-row small {
           color: var(--text-muted);
           font-size: 0.75rem;
         }
@@ -279,6 +334,8 @@ export default function Dashboard() {
           .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
 
           .dashboard-leads-header,
+          .dashboard-adherence-header,
+          .dashboard-adherence-row,
           .dashboard-lead-row { align-items: stretch; flex-direction: column; }
 
           .dashboard-lead-row .form-select { width: 100%; }

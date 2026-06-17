@@ -5,6 +5,7 @@ import { generateWorkoutPDF } from '../lib/pdf';
 import { useAuth, useToast } from '../lib/app-context';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
 import ExerciseMedia from '../components/ExerciseMedia';
+import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
 
 export default function Workouts() {
   const [search, setSearch] = useState('');
@@ -15,6 +16,7 @@ export default function Workouts() {
   const { user } = useAuth();
   const addToast = useToast();
   useStorageSync('workouts');
+  const { refresh: refreshCompletions } = useStorageSync('workout-completions');
   const isStudentView = user?.type === 'aluno';
   const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
 
@@ -126,6 +128,33 @@ export default function Workouts() {
     addToast(`Treino enviado para ${student.name} via WhatsApp!`, 'success');
   };
 
+  const handleTogglePublishedWorkout = (workout) => {
+    if (!isStudentView || workout?.source !== 'rascunho_anamnese') return;
+    const completion = getWorkoutCompletion(user, workout.id);
+    if (completion?.status === 'completed') {
+      markWorkoutPending(user, workout);
+      addToast('Treino marcado como pendente.', 'info');
+    } else {
+      markWorkoutCompleted(user, workout);
+      addToast('Treino marcado como concluido.', 'success');
+    }
+    refreshCompletions();
+  };
+
+  const renderPDFButton = (workout) => (
+    <button className="btn btn-secondary btn-sm" onClick={() => {
+      try {
+        generateWorkoutPDF(workout);
+        addToast('PDF gerado!', 'success');
+      } catch (err) {
+        console.warn('PDF Error, fallback to alert', err);
+        alert('📄 Relatório gerado (modo demo offline)');
+      }
+    }}>
+      <FileDown size={14} /> PDF
+    </button>
+  );
+
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
@@ -148,7 +177,10 @@ export default function Workouts() {
         </div>
       ) : (
         <div className="workouts-grid">
-          {activeFiltered.map(workout => (
+          {activeFiltered.map(workout => {
+            const completion = isStudentView ? getWorkoutCompletion(user, workout.id) : null;
+            const isCompleted = workout.status === 'completed' || completion?.status === 'completed';
+            return (
             <div key={workout.scheduleId || workout.id} className="card card-glow workout-card">
               <div className="workout-header">
                 <div>
@@ -157,6 +189,7 @@ export default function Workouts() {
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   {workout.source === 'rascunho_anamnese' && <span className="badge badge-success">Publicado</span>}
+                  {isStudentView && workout.source === 'rascunho_anamnese' && isCompleted && <span className="badge badge-primary">Concluído</span>}
                   <span className="badge badge-secondary">{workout.category}</span>
                 </div>
               </div>
@@ -179,22 +212,17 @@ export default function Workouts() {
               </div>
 
               <div className="workout-actions">
+                {isStudentView && workout.source === 'rascunho_anamnese' && (
+                  <button className={isCompleted ? "btn btn-success btn-sm" : "btn btn-outline btn-sm"} onClick={() => handleTogglePublishedWorkout(workout)}>
+                    {isCompleted ? 'Marcar como pendente' : 'Marcar como concluído'}
+                  </button>
+                )}
                 {!isStudentView && (
                   <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
                     <MessageCircle size={14} /> WhatsApp
                   </button>
                 )}
-                <button className="btn btn-secondary btn-sm" onClick={() => {
-                  try {
-                    generateWorkoutPDF(workout);
-                    addToast('PDF gerado!', 'success');
-                  } catch (err) {
-                    console.warn('PDF Error, fallback to alert', err);
-                    alert('📄 Relatório gerado (modo demo offline)');
-                  }
-                }}>
-                  <FileDown size={14} /> PDF
-                </button>
+                {renderPDFButton(workout)}
                 {!isStudentView && (
                   <>
                     <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>
@@ -207,7 +235,8 @@ export default function Workouts() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -230,17 +259,7 @@ export default function Workouts() {
                   {workout.exercises?.length || 0} exercício(s)
                 </p>
                 <div className="workout-actions">
-                  <button className="btn btn-secondary btn-sm" onClick={() => {
-                    try {
-                      generateWorkoutPDF(workout);
-                      addToast('PDF gerado!', 'success');
-                    } catch (err) {
-                      console.warn('PDF Error, fallback to alert', err);
-                      alert('📄 Relatório gerado (modo demo offline)');
-                    }
-                  }}>
-                    <FileDown size={14} /> PDF
-                  </button>
+                  {renderPDFButton(workout)}
                   {!isStudentView && (
                     <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
                       <Trash2 size={16} />
