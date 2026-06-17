@@ -1,5 +1,43 @@
 # Deploy Preview PowerFit
 
+## Deploy publico aprovado
+
+URL publica: https://powerfit-app.vercel.app
+
+Status: aprovado para teste do Marcio como demo publica controlada.
+
+Credenciais demo:
+
+- Personal: `marcio.demo@powerfit.local` / `demo123`
+- Aluno: `aluno.pro@powerfit.local` / `demo123`
+
+Aviso obrigatorio: nao usar dados reais. O app mostra `Ambiente demo/preview - nao use dados reais.` no fluxo interno e na tela de login.
+
+O que testar no celular:
+
+- Abrir a URL publica no navegador.
+- Verificar se a landing carrega.
+- Entrar como personal demo e abrir dashboard, alunos, treinos e agenda.
+- Sair e entrar como aluno demo.
+- Abrir painel do aluno, treino, avaliacao inicial, progresso e recursos PRO demo.
+- Conferir se `manifest.json` abre sem 401 e se o PWA oferece instalacao quando o navegador permitir.
+- Abrir rota direta, por exemplo `/workouts`, para confirmar fallback SPA.
+
+Limitacoes:
+
+- Demo publica controlada, nao producao final.
+- Auth/RLS/Supabase de producao ainda nao estao prontos.
+- Pagamento real nao esta conectado.
+- Dados demo sao ficticios e locais no navegador.
+- Marketplace, lojas e Tinder do personal ficam fora desta entrega.
+
+Proximos passos:
+
+- Enviar URL para Marcio testar no celular.
+- Coletar feedback sobre clareza, fluxo, valor percebido e bugs.
+- Corrigir pontos pequenos antes de nova rodada.
+- Manter producao real bloqueada ate Auth/RLS/pagamento ficarem seguros.
+
 ## Objetivo
 
 Publicar um preview testavel do PowerFit em Vercel sem transformar a demo em producao.
