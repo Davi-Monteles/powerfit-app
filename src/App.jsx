@@ -22,7 +22,7 @@ import Sidebar from './components/Sidebar';
 import Toast from './components/Toast';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
-import { getPreviewDemoNotice } from './lib/preview-environment';
+import { ensurePreviewDemoSeed, getPreviewDemoNotice } from './lib/preview-environment';
 
 function ProtectedRoute({ children, allowedType, requirePlan }) {
   const { user } = useAuth();
@@ -100,6 +100,8 @@ export default function App() {
   useEffect(() => { 
     const initAuth = async () => {
       try {
+        ensurePreviewDemoSeed();
+
         // 3. AUTH FLOW INTELIGENTE
         const { data: { session } } = await supabase.auth.getSession();
         

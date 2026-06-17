@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { registerUser, loginUser, hydrateSessionUser, getUserPlan, fetchSupabaseRowByEmail, resolveStudentProfileForAuthUser } from '../lib/storage';
 import { stripSensitiveSessionFields } from '../lib/security';
+import { getPreviewDemoNotice } from '../lib/preview-environment';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 import PwaInstallHint from '../components/PwaInstallHint';
 
@@ -17,6 +18,7 @@ export default function Auth({ onLogin }) {
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', type: 'aluno' });
   const [loginPassword, setLoginPassword] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const previewNotice = getPreviewDemoNotice();
 
   const persistSafeSession = (sessionUser) => {
     const hydrated = hydrateSessionUser(sessionUser);
@@ -142,6 +144,8 @@ export default function Auth({ onLogin }) {
           <button className={"tab " + (tab === 'login' ? 'active' : '')} onClick={() => { setTab('login'); setError(''); }}>Entrar</button>
           <button className={"tab " + (tab === 'register' ? 'active' : '')} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
         </div>
+
+        {previewNotice && <div className="auth-demo-notice">{previewNotice}<br />Personal: marcio.demo@powerfit.local / demo123<br />Aluno: aluno.pro@powerfit.local / demo123</div>}
 
         {tab === 'login' && <PwaInstallHint />}
 
@@ -315,6 +319,18 @@ export default function Auth({ onLogin }) {
           border-radius: var(--radius-md);
           font-size: 0.85rem;
           margin-bottom: 16px;
+          text-align: center;
+        }
+
+        .auth-demo-notice {
+          background: rgba(15, 23, 42, 0.74);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          color: #CBD5E1;
+          padding: 10px 12px;
+          border-radius: var(--radius-md);
+          font-size: 0.78rem;
+          line-height: 1.45;
+          margin-bottom: 14px;
           text-align: center;
         }
 
