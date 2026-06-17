@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useToast } from '../lib/app-context';
 import { getStudents, getWorkouts, getEvolution, getScheduleByDate, getUserPlan, getStudentUsage, isVipUser, saveNotification, forceSyncData } from '../lib/storage';
+import { getTrainerLeads, updateTrainerLeadStatus } from '../lib/trainer-leads';
 import { useStorageSync } from '../lib/useStorageSync';
-import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Dumbbell, TrendingUp, Plus, ArrowRight, CalendarDays, Clock, Camera, Settings, Crown, Bell, MessageCircle } from 'lucide-react';
 import StudentIntakeSummary from '../components/StudentIntakeSummary';
 import WorkoutDraftCard from '../components/WorkoutDraftCard';
 
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const plan = getUserPlan();
   const usage = getStudentUsage();
   const isVip = isVipUser(user?.email);
+  const [trainerLeads, setTrainerLeads] = useState(() => getTrainerLeads());
   useStorageSync();
 
   const students = getStudents();
@@ -56,6 +58,23 @@ export default function Dashboard() {
     const message = "Você tem um novo lembrete de treino do seu Personal! Bora pra cima! 💪";
     saveNotification(studentId, message);
     addToast("Lembrete interno enviado com sucesso!", "success");
+  };
+
+  const handleLeadStatusChange = (leadId, status) => {
+    try {
+      updateTrainerLeadStatus(leadId, status);
+      setTrainerLeads(getTrainerLeads());
+      addToast('Status do interessado atualizado.', 'success');
+    } catch {
+      addToast('Nao foi possivel atualizar o status.', 'error');
+    }
+  };
+
+  const formatLeadDate = (value) => {
+    if (!value) return 'Sem data';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Sem data';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -151,6 +170,38 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="card dashboard-leads-card" style={{ padding: '24px', marginTop: '20px' }}>
+        <div className="dashboard-leads-header">
+          <div>
+            <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><MessageCircle size={18} style={{ color: 'var(--primary)' }} /> Interessados / Leads</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '4px' }}>Captados pelo perfil publico demo /personal/marcio.</p>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setTrainerLeads(getTrainerLeads())}>Atualizar</button>
+        </div>
+        {trainerLeads.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '16px 0' }}>
+            Nenhum interessado capturado neste navegador.
+          </p>
+        ) : (
+          <div className="dashboard-leads-list">
+            {trainerLeads.map(lead => (
+              <div className="dashboard-lead-row" key={lead.id}>
+                <div>
+                  <strong>{lead.name || 'Interessado sem nome'}</strong>
+                  <p>{lead.objective || 'Objetivo nao informado'}</p>
+                  <small>{formatLeadDate(lead.date)} • {lead.source}</small>
+                </div>
+                <select className="form-select" value={lead.status} onChange={event => handleLeadStatusChange(lead.id, event.target.value)} aria-label={`Status de ${lead.name || 'interessado'}`}>
+                  <option value="novo">novo</option>
+                  <option value="contatado">contatado</option>
+                  <option value="arquivado">arquivado</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <style>{`
         .dashboard-main-grid {
           display: grid;
@@ -186,9 +237,51 @@ export default function Dashboard() {
           overflow-wrap: anywhere;
         }
 
+        .dashboard-leads-header,
+        .dashboard-lead-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .dashboard-leads-list {
+          display: grid;
+          gap: 10px;
+          margin-top: 16px;
+        }
+
+        .dashboard-lead-row {
+          padding: 12px 14px;
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          background: rgba(255,255,255,0.02);
+        }
+
+        .dashboard-lead-row p {
+          color: var(--text-secondary);
+          font-size: 0.84rem;
+          margin: 4px 0;
+        }
+
+        .dashboard-lead-row small {
+          color: var(--text-muted);
+          font-size: 0.75rem;
+        }
+
+        .dashboard-lead-row .form-select {
+          width: 150px;
+          flex-shrink: 0;
+        }
+
         @media (max-width: 768px) {
           .dashboard-intake-grid,
           .dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
+
+          .dashboard-leads-header,
+          .dashboard-lead-row { align-items: stretch; flex-direction: column; }
+
+          .dashboard-lead-row .form-select { width: 100%; }
         }
 
         @media (max-width: 360px) {
