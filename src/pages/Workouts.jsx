@@ -155,7 +155,10 @@ export default function Workouts() {
                   <h4 style={{ fontSize: '1.05rem', marginBottom: '4px' }}>{workout.name}</h4>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{workout.description}</p>
                 </div>
-                <span className="badge badge-secondary">{workout.category}</span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {workout.source === 'rascunho_anamnese' && <span className="badge badge-success">Publicado</span>}
+                  <span className="badge badge-secondary">{workout.category}</span>
+                </div>
               </div>
 
               <div className="workout-exercises">

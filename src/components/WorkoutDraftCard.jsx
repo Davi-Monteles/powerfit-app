@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Dumbbell, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react';
+import { CheckCircle2, Dumbbell, RefreshCw, ShieldAlert, Sparkles, UploadCloud } from 'lucide-react';
+import { useToast } from '../lib/app-context';
 import { getStudentIntake, getStudentIntakeProfile } from '../lib/student-intake';
-import { generateWorkoutDraft } from '../lib/workout-draft';
+import { generateWorkoutDraft, publishWorkoutDraft } from '../lib/workout-draft';
 
 function getStudentIdentity(student) {
   return [student?.id, student?.studentId, student?.student_id, student?.email].find(Boolean) || null;
@@ -30,15 +31,30 @@ function DraftExercise({ exercise }) {
 }
 
 export default function WorkoutDraftCard({ students = [] }) {
+  const addToast = useToast();
   const selected = pickStudentProfile(students);
   const [draft, setDraft] = useState(null);
+  const [publishResult, setPublishResult] = useState(null);
   const [generationCount, setGenerationCount] = useState(0);
   const hasSelectedIntake = !!selected?.intake;
 
   const handleGenerate = () => {
     if (!selected || !hasSelectedIntake) return;
     setDraft(generateWorkoutDraft(selected.student, selected.intake));
+    setPublishResult(null);
     setGenerationCount(count => count + 1);
+  };
+
+  const handlePublish = () => {
+    if (!selected || !draft?.canGenerate) return;
+
+    try {
+      const result = publishWorkoutDraft(selected.student, draft);
+      setPublishResult(result);
+      addToast(result.created ? 'Treino publicado para o aluno.' : 'Treino publicado atualizado sem duplicar.', 'success');
+    } catch {
+      addToast('Nao foi possivel publicar o rascunho.', 'error');
+    }
   };
 
   return (
@@ -115,6 +131,20 @@ export default function WorkoutDraftCard({ students = [] }) {
               <div className="workout-draft-notes">
                 {draft.observations.slice(0, 3).map(note => <p key={note}>{note}</p>)}
               </div>
+
+              <div className="workout-draft-publish-box">
+                <p>Revise exercicios, series e repeticoes antes de publicar para o aluno.</p>
+                <button type="button" className="btn btn-secondary workout-draft-publish" onClick={handlePublish}>
+                  <UploadCloud size={16} /> Publicar treino para aluno
+                </button>
+              </div>
+
+              {publishResult && (
+                <div className="workout-draft-published" role="status">
+                  <CheckCircle2 size={15} />
+                  {publishResult.created ? 'Treino publicado e vinculado ao aluno.' : 'Treino atualizado sem criar duplicado.'}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -201,6 +231,11 @@ function WorkoutDraftCardStyles() {
         width: 100%;
         justify-content: center;
         margin-bottom: 12px;
+      }
+
+      .workout-draft-publish {
+        width: 100%;
+        justify-content: center;
       }
 
       .workout-draft-empty {
@@ -302,6 +337,34 @@ function WorkoutDraftCardStyles() {
       .workout-draft-notes {
         padding-top: 10px;
         border-top: 1px solid var(--border);
+      }
+
+      .workout-draft-publish-box {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid rgba(34,197,94,0.22);
+        border-radius: var(--radius-md);
+        background: rgba(34,197,94,0.06);
+      }
+
+      .workout-draft-publish-box p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        line-height: 1.45;
+      }
+
+      .workout-draft-published {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 10px;
+        border-radius: var(--radius-md);
+        background: rgba(34,197,94,0.12);
+        color: var(--success);
+        font-size: 0.8rem;
+        font-weight: 800;
       }
 
       @media (max-width: 640px) {

@@ -3,6 +3,10 @@ import { getStudentIntakeProfile } from './student-intake.js';
 
 const REVIEW_NOTICE = 'Rascunho para revisão do personal. Não substitui avaliação médica.';
 const PROFESSIONAL_REVIEW_ALERT = 'Atenção: revisar com profissional antes de aplicar este treino.';
+const WORKOUTS_KEY = 'powerfit_workouts';
+const STUDENTS_KEY = 'powerfit_students';
+const CURRENT_USER_KEY = 'powerfit_current_user';
+const DRAFT_SOURCE = 'rascunho_anamnese';
 
 const FOCUS_ALIASES = {
   pernas: ['quadriceps', 'gluteos', 'posteriores', 'panturrilhas'],
@@ -21,6 +25,104 @@ function normalizeText(value) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+function getLocalItem(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setLocalItem(key, value) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function createLocalId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `draft_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function getStudentId(student = {}) {
+  return student.id || student.studentId || student.student_id || null;
+}
+
+function getStudentEmail(student = {}) {
+  return String(student.email || student.studentEmail || student.student_email || '').trim().toLowerCase() || null;
+}
+
+function getPersonalId(student = {}) {
+  const currentUser = getLocalItem(CURRENT_USER_KEY, null);
+  return student.personalId || student.personal_id || currentUser?.id || null;
+}
+
+function getDraftKey(student = {}, draft = {}) {
+  return [getStudentId(student) || getStudentEmail(student), draft.title, draft.objective]
+    .map(normalizeText)
+    .join(':');
+}
+
+function notifyLocalWorkoutChange() {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  window.dispatchEvent(new Event('powerfit:weekly-schedule-updated'));
+  if (typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('powerfit:data-changed', { detail: { entity: 'workouts', timestamp: Date.now() } }));
+  }
+}
+
+function buildPublishedExercises(draft = {}) {
+  return (draft.days || []).flatMap(day => (day.exercises || []).map(exercise => ({
+    name: exercise.name,
+    mediaKey: exercise.mediaKey || null,
+    sets: exercise.sets,
+    reps: exercise.reps,
+    rest: exercise.rest,
+    notes: [day.title, day.focus, exercise.notes].filter(Boolean).join(' - '),
+  })));
+}
+
+function upsertStudentAssignment(student = {}, workout, now) {
+  const students = getLocalItem(STUDENTS_KEY, []);
+  const studentId = getStudentId(student);
+  const studentEmail = getStudentEmail(student);
+  const index = students.findIndex(item => (
+    (studentId && [item.id, item.studentId, item.student_id].includes(studentId)) ||
+    (studentEmail && getStudentEmail(item) === studentEmail)
+  ));
+
+  if (index === -1) return;
+
+  const record = { ...students[index] };
+  record.studentId = record.id || record.studentId || studentId;
+  record.student_id = record.studentId;
+
+  const workoutIds = Array.isArray(record.workoutIds) ? [...record.workoutIds] : [];
+  if (!workoutIds.includes(workout.id)) workoutIds.push(workout.id);
+  record.workoutIds = workoutIds;
+
+  const schedule = Array.isArray(record.workoutSchedule) ? [...record.workoutSchedule] : [];
+  const existing = schedule.find(item => item.workoutId === workout.id || item.sourceDraftKey === workout.sourceDraftKey);
+  if (!existing) {
+    schedule.push({
+      id: `schedule_${workout.id}`,
+      workoutId: workout.id,
+      day: 'Geral',
+      status: 'pending',
+      completed: false,
+      completedAt: null,
+      source: DRAFT_SOURCE,
+      sourceDraftKey: workout.sourceDraftKey,
+      createdAt: now,
+    });
+  }
+  record.workoutSchedule = schedule;
+
+  students[index] = record;
+  setLocalItem(STUDENTS_KEY, students);
 }
 
 function parseDays(daysPerWeek) {
@@ -200,4 +302,71 @@ export function generateWorkoutDraft(student = {}, intake = null) {
     safetyAlerts,
     days: buildDraftDays(profile, needsProfessionalReview),
   };
+}
+
+export function publishWorkoutDraft(student = {}, draft = {}, options = {}) {
+  if (!draft?.canGenerate) throw new Error('Rascunho invalido para publicacao');
+
+  const now = options.now?.() || new Date().toISOString();
+  const studentId = getStudentId(student);
+  const studentEmail = getStudentEmail(student);
+  const personalId = getPersonalId(student);
+  const sourceDraftKey = getDraftKey(student, draft);
+  const workouts = getLocalItem(WORKOUTS_KEY, []);
+  const existingIndex = workouts.findIndex(workout => (
+    workout.source === DRAFT_SOURCE &&
+    workout.sourceDraftKey === sourceDraftKey &&
+    (
+      (studentId && (workout.studentId === studentId || workout.student_id === studentId)) ||
+      (studentEmail && (workout.studentEmail === studentEmail || workout.student_email === studentEmail))
+    )
+  ));
+  const existingWorkout = existingIndex >= 0 ? workouts[existingIndex] : null;
+  const exercises = buildPublishedExercises(draft);
+  const workout = {
+    ...(existingWorkout || {}),
+    id: existingWorkout?.id || options.id?.() || createLocalId(),
+    name: draft.title?.replace('Rascunho inicial', 'Treino publicado') || 'Treino publicado',
+    description: `${draft.objective || 'Objetivo nao informado'} · ${draft.frequency || 'Frequencia nao informada'} · revisar antes de aplicar.`,
+    category: draft.objective || 'Musculacao',
+    exercises,
+    status: 'publicado',
+    source: DRAFT_SOURCE,
+    sourceDraftKey,
+    studentId,
+    student_id: studentId,
+    studentEmail,
+    student_email: studentEmail,
+    personalId,
+    personal_id: personalId,
+    assignedTo: studentId,
+    assigned_to: studentId,
+    notes: (draft.observations || []).join('\n'),
+    createdAt: existingWorkout?.createdAt || now,
+    updatedAt: now,
+  };
+
+  if (existingIndex >= 0) workouts[existingIndex] = workout;
+  else workouts.push(workout);
+
+  setLocalItem(WORKOUTS_KEY, workouts);
+  upsertStudentAssignment(student, workout, now);
+  notifyLocalWorkoutChange();
+
+  return { workout, created: existingIndex === -1, updated: existingIndex >= 0 };
+}
+
+export function getPublishedDraftWorkoutsForStudent(student = {}) {
+  const studentId = getStudentId(student);
+  const studentEmail = getStudentEmail(student);
+  const personalId = getPersonalId(student);
+
+  return getLocalItem(WORKOUTS_KEY, []).filter(workout => (
+    workout.source === DRAFT_SOURCE &&
+    (
+      (studentId && (workout.studentId === studentId || workout.student_id === studentId)) ||
+      (studentEmail && (workout.studentEmail === studentEmail || workout.student_email === studentEmail))
+    ) &&
+    (!personalId || !workout.personalId || workout.personalId === personalId || workout.personal_id === personalId)
+  ));
 }

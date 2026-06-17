@@ -418,6 +418,7 @@ export default function StudentDashboard() {
                           <h5 style={{ fontSize: '0.88rem', color: isCompleted ? '#22c55e' : 'inherit', margin: 0 }}>
                             {w.name} {isCompleted && '✓'}
                           </h5>
+                          {w.source === 'rascunho_anamnese' && <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>Publicado</span>}
                           {w.scheduleId && (
                             <button 
                               onClick={() => handleToggleWorkout(w)}
@@ -457,7 +458,10 @@ export default function StudentDashboard() {
           <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
             {activeWorkouts.filter(w => w.day === 'Geral').map((w, idx) => (
               <div key={w.scheduleId || idx} className="card" style={{ padding: '16px' }}>
-                <h5 style={{ marginBottom: '6px', fontSize: '0.95rem' }}>{w.name}</h5>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  <h5 style={{ margin: 0, fontSize: '0.95rem' }}>{w.name}</h5>
+                  {w.source === 'rascunho_anamnese' && <span className="badge badge-success" style={{ fontSize: '0.62rem' }}>Publicado</span>}
+                </div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{w.description}</p>
               </div>
             ))}
