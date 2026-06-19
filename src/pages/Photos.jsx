@@ -3,12 +3,14 @@ import { getStudents, getPhotosByStudent, savePhoto, deletePhoto, forceSyncData,
 import { useStorageSync } from '../lib/useStorageSync';
 import { useAuth, useToast } from '../lib/app-context';
 import { Camera, Plus, X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Photos() {
   const [selectedStudent, setSelectedStudent] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareIdxs, setCompareIdxs] = useState([0, -1]);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, label: '' });
   const { user } = useAuth();
   const addToast = useToast();
   useStorageSync();
@@ -50,9 +52,15 @@ export default function Photos() {
     addToast('Foto salva!', 'success');
   };
 
-  const handleDeletePhoto = async (id) => {
-    if (!confirm('Excluir esta foto?')) return;
+  const handleDeletePhoto = (id, label) => {
+    setConfirmDelete({ open: true, id, label: label || 'esta foto' });
+  };
+
+  const confirmDeletePhoto = async () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     await deletePhoto(id);
+    setConfirmDelete({ open: false, id: null, label: '' });
     addToast('Foto removida', 'info');
   };
 
@@ -127,7 +135,7 @@ export default function Photos() {
                     <p style={{ fontSize: '0.8rem', fontWeight: '600' }}>{photo.label || 'Sem descrição'}</p>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(photo.date).toLocaleDateString('pt-BR')}</p>
                   </div>
-                  <button className="btn btn-ghost btn-icon" onClick={() => handleDeletePhoto(photo.id)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDeletePhoto(photo.id, photo.label)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -158,6 +166,18 @@ export default function Photos() {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, label: '' })}
+        onConfirm={confirmDeletePhoto}
+        title="Excluir foto"
+        message={`Tem certeza que deseja excluir ${confirmDelete.label}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
 
       <style>{`
         .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }

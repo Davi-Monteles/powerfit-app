@@ -404,7 +404,7 @@ export default function Landing() {
             </div>
           ))}
         </div>
-        <div className="pf-footer-bottom">© 2025 PowerFit. Todos os direitos reservados.</div>
+        <div className="pf-footer-bottom">© 2026 PowerFit. Todos os direitos reservados.</div>
       </footer>
 
       <style>{`

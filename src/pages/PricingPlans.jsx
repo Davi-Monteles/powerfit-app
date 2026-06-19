@@ -148,7 +148,7 @@ export default function PricingPlans() {
 
         <div className="pricing-footer">
           <Shield size={16} />
-          <span>{activeType === 'aluno' ? 'Modo demo do aluno • Pagamento real ainda não conectado' : 'Pagamento seguro • Cancele a qualquer momento • Sem taxas ocultas'}</span>
+          <span>{activeType === 'aluno' ? 'Modo demo do aluno • Pagamento real ainda não conectado' : 'Ambiente de demonstração • Não use dados reais • Pagamento real será conectado em produção'}</span>
         </div>
       </div>
 

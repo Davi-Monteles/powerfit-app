@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { stripSensitiveSessionFields } from '../lib/security';
 import { useToast, useTheme, useAuth } from '../lib/app-context';
 import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield, CreditCard, User } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Settings() {
   const { user, login: setUser } = useAuth();
@@ -15,6 +16,7 @@ export default function Settings() {
   const studentData = isStudent ? resolveStudentProfileFromCache(user) : null;
   
   const [importing, setImporting] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [profile, setProfile] = useState({
     weight: studentData?.weight || '',
     height: studentData?.height || '',
@@ -48,8 +50,10 @@ export default function Settings() {
   };
 
   const handleClearData = () => {
-    if (!confirm('⚠️ Tem CERTEZA que deseja apagar TODOS os dados? Isso não pode ser desfeito!')) return;
-    if (!confirm('Última chance! Todos os alunos, treinos e evolução serão perdidos.')) return;
+    setConfirmClear(true);
+  };
+
+  const confirmClearData = () => {
     localStorage.clear();
     addToast('Dados limpos! Recarregando...', 'info');
     setTimeout(() => window.location.reload(), 1500);
@@ -240,6 +244,16 @@ export default function Settings() {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        onConfirm={confirmClearData}
+        title="Apagar todos os dados"
+        message="Tem CERTEZA que deseja apagar TODOS os dados? Todos os alunos, treinos, evolução e fotos serão perdidos. Esta ação não pode ser desfeita!"
+        confirmLabel="Apagar tudo"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

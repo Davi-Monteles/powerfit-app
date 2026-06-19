@@ -474,11 +474,11 @@ export default function MyPlan() {
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
                 <ShieldCheck size={16} color="#22c55e" />
-                <span>Pagamento 100% seguro via Mercado Pago</span>
+                <span>Ambiente de demonstração; gateway de pagamento real não conectado</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
                 <Lock size={14} />
-                <span>Dados protegidos com criptografia SSL</span>
+                <span>Não use dados reais de cartão nesta demo</span>
               </div>
             </>
           )}

@@ -4,6 +4,7 @@ import { useStorageSync } from '../lib/useStorageSync';
 import { useAuth, useToast } from '../lib/app-context';
 import { TrendingUp, Plus, X, Trash2, Calendar, Scale, Ruler } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
@@ -33,6 +34,7 @@ export default function Evolution() {
   const [selectedStudent, setSelectedStudent] = useState('');
   const [activeMetrics, setActiveMetrics] = useState(['weight', 'waist', 'hip', 'chest']);
   const [showModal, setShowModal] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, date: '' });
   const { user } = useAuth();
   const addToast = useToast();
   useStorageSync();
@@ -87,9 +89,15 @@ export default function Evolution() {
     addToast('Medida registrada!', 'success');
   };
 
-  const handleDeleteEntry = (id) => {
-    if (!confirm('Excluir este registro?')) return;
+  const handleDeleteEntry = (id, date) => {
+    setConfirmDelete({ open: true, id, date: date || 'este registro' });
+  };
+
+  const confirmDeleteEntry = () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     deleteEvolutionEntry(id);
+    setConfirmDelete({ open: false, id: null, date: '' });
     addToast('Registro removido', 'info');
   };
 
@@ -250,7 +258,7 @@ export default function Evolution() {
                         <td>{entry.arm || '—'}</td>
                         <td>{entry.thigh || '—'}</td>
                         <td>
-                          <button className="btn btn-ghost btn-icon" onClick={() => handleDeleteEntry(entry.id)} style={{ color: 'var(--danger)' }}>
+                          <button className="btn btn-ghost btn-icon" onClick={() => handleDeleteEntry(entry.id, new Date(entry.date).toLocaleDateString('pt-BR'))} style={{ color: 'var(--danger)' }}>
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -321,6 +329,17 @@ export default function Evolution() {
           </div>
         </div>
       )}
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, date: '' })}
+        onConfirm={confirmDeleteEntry}
+        title="Excluir registro"
+        message={`Tem certeza que deseja excluir o registro de ${confirmDelete.date}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

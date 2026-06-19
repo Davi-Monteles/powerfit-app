@@ -5,12 +5,14 @@ import { stripSensitiveSessionFields } from '../lib/security';
 import { getPreviewDemoNotice } from '../lib/preview-environment';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 import PwaInstallHint from '../components/PwaInstallHint';
+import Modal from '../components/Modal';
 
 export default function Auth({ onLogin }) {
   const [tab, setTab] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '' });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -174,7 +176,7 @@ export default function Auth({ onLogin }) {
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
             <div style={{ marginTop: '16px', textAlign: 'center' }}>
-              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => alert('Um link de recuperação seria enviado para seu email neste app em produção.')}>
+              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAlertModal({ open: true, title: 'Recuperar senha', message: 'Um link de recuperação seria enviado para seu email neste app em produção.' })}>
                 Esqueci minha senha
               </button>
             </div>
@@ -239,10 +241,23 @@ export default function Auth({ onLogin }) {
       </div>
 
       <div style={{ position: 'absolute', bottom: '24px', width: '100%', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => alert('Termos de Uso não existem nesta demo.')}>Termos de Uso</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => setAlertModal({ open: true, title: 'Termos de Uso', message: 'Termos de Uso não existem nesta demo.' })}>Termos de Uso</span>
         <span style={{ margin: '0 8px' }}>•</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => alert('Política de Privacidade não existe nesta demo.')}>Política de Privacidade</span>
+        <span style={{ cursor: 'pointer' }} onClick={() => setAlertModal({ open: true, title: 'Política de Privacidade', message: 'Política de Privacidade não existe nesta demo.' })}>Política de Privacidade</span>
       </div>
+
+      <Modal
+        open={alertModal.open}
+        onClose={() => setAlertModal({ ...alertModal, open: false })}
+        title={alertModal.title}
+        footer={
+          <button type="button" className="btn btn-primary" onClick={() => setAlertModal({ ...alertModal, open: false })}>
+            Entendi
+          </button>
+        }
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.55 }}>{alertModal.message}</p>
+      </Modal>
 
       <style>{`
         .auth-page {

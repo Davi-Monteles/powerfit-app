@@ -4,6 +4,7 @@ import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToSt
 import { useStorageSync } from '../lib/useStorageSync';
 import { useToast, useAuth } from '../lib/app-context';
 import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History, Bell } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Students() {
   const [search, setSearch] = useState('');
@@ -13,6 +14,7 @@ export default function Students() {
   const [assigningStudent, setAssigningStudent] = useState(null);
   const [pendingAssignWorkoutId, setPendingAssignWorkoutId] = useState(null);
   const [assignDay, setAssignDay] = useState('Segunda');
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '' });
   const addToast = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -71,9 +73,15 @@ export default function Students() {
     }
   };
 
-  const handleDelete = (id) => {
-    if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
+  const handleDelete = (id, name) => {
+    setConfirmDelete({ open: true, id, name: name || 'este aluno' });
+  };
+
+  const confirmDeleteStudent = () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     deleteStudent(id);
+    setConfirmDelete({ open: false, id: null, name: '' });
     addToast('Aluno excluído', 'info');
   };
 
@@ -158,7 +166,7 @@ export default function Students() {
                 <button className="btn btn-ghost btn-icon" onClick={() => sendReminder(student)} title="Enviar Lembrete" style={{ color: '#06b6d4' }}><Bell size={16} /></button>
                 <button className="btn btn-ghost btn-icon" onClick={() => handleWhatsAppChat(student.phone)} title="Falar no WhatsApp" style={{ color: '#25D366' }}><Phone size={16} /></button>
                 <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)} title="Editar"><Edit2 size={16} /></button>
-                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id)} title="Excluir" style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id, student.name)} title="Excluir" style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
               </div>
             </div>
           ))}
@@ -312,6 +320,18 @@ export default function Students() {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, name: '' })}
+        onConfirm={confirmDeleteStudent}
+        title="Excluir aluno"
+        message={`Tem certeza que deseja excluir ${confirmDelete.name}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
 
       <style>{`
         .students-grid {
