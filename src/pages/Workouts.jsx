@@ -5,7 +5,10 @@ import { generateWorkoutPDF } from '../lib/pdf';
 import { useAuth, useToast } from '../lib/app-context';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
 import ExerciseMedia from '../components/ExerciseMedia';
+import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
 import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
+import { getExerciseProgress, getAllProgressForWorkout, saveProgress, toggleExercise, isWorkoutFullyCompleted } from '../lib/exercise-progress';
 
 export default function Workouts() {
   const [search, setSearch] = useState('');
@@ -13,10 +16,13 @@ export default function Workouts() {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '' });
+  const [pdfAlert, setPdfAlert] = useState({ open: false, message: '' });
   const { user } = useAuth();
   const addToast = useToast();
   useStorageSync('workouts');
   const { refresh: refreshCompletions } = useStorageSync('workout-completions');
+  const { refresh: refreshProgress } = useStorageSync('exercise-progress');
   const isStudentView = user?.type === 'aluno';
   const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
 
@@ -83,7 +89,7 @@ export default function Workouts() {
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
 
-  const handleDelete = async (workoutOrId) => {
+  const handleDelete = (workoutOrId) => {
     if (user?.type === 'aluno') {
       addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
       return;
@@ -92,8 +98,14 @@ export default function Workouts() {
     const workout = typeof workoutOrId === 'object' ? workoutOrId : workouts.find(item => item.id === workoutOrId);
     const id = workout?.id || workoutOrId;
 
-    if (!confirm('Tem certeza que deseja excluir este treino?')) return;
+    setConfirmDelete({ open: true, id, name: workout?.name || 'este treino' });
+  };
+
+  const confirmDeleteWorkout = async () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     await deleteWorkout(id);
+    setConfirmDelete({ open: false, id: null, name: '' });
     if (!isStudentView) await forceSyncData();
     addToast('Treino excluido', 'info');
   };
@@ -141,6 +153,31 @@ export default function Workouts() {
     refreshCompletions();
   };
 
+  const handleToggleExercise = (workout, exerciseIndex) => {
+    if (!isStudentView) return;
+    toggleExercise(user, workout, exerciseIndex);
+    refreshProgress();
+
+    const allDone = isWorkoutFullyCompleted(user, workout);
+    const completion = getWorkoutCompletion(user, workout.id);
+    const wasCompleted = workout.status === 'completed' || completion?.status === 'completed';
+
+    if (allDone && !wasCompleted) {
+      markWorkoutCompleted(user, workout);
+      refreshCompletions();
+      addToast('Treino concluído!', 'success');
+    } else if (!allDone && wasCompleted) {
+      markWorkoutPending(user, workout);
+      refreshCompletions();
+    }
+  };
+
+  const handleExerciseWeightChange = (workout, exerciseIndex, value) => {
+    if (!isStudentView) return;
+    saveProgress(user, workout, exerciseIndex, { actualWeight: value });
+    refreshProgress();
+  };
+
   const renderPDFButton = (workout) => (
     <button className="btn btn-secondary btn-sm" onClick={() => {
       try {
@@ -148,7 +185,7 @@ export default function Workouts() {
         addToast('PDF gerado!', 'success');
       } catch (err) {
         console.warn('PDF Error, fallback to alert', err);
-        alert('📄 Relatório gerado (modo demo offline)');
+        setPdfAlert({ open: true, message: 'Relatório gerado (modo demo offline)' });
       }
     }}>
       <FileDown size={14} /> PDF
@@ -180,6 +217,7 @@ export default function Workouts() {
           {activeFiltered.map(workout => {
             const completion = isStudentView ? getWorkoutCompletion(user, workout.id) : null;
             const isCompleted = workout.status === 'completed' || completion?.status === 'completed';
+            const workoutProgressAll = !isStudentView ? getAllProgressForWorkout(workout.id) : [];
             return (
             <div key={workout.scheduleId || workout.id} className="card card-glow workout-card">
               <div className="workout-header">
@@ -195,7 +233,12 @@ export default function Workouts() {
               </div>
 
               <div className="workout-exercises">
-                {workout.exercises?.map((ex, i) => (
+                {workout.exercises?.map((ex, i) => {
+                  const exProgress = isStudentView ? getExerciseProgress(user, workout.id, i) : null;
+                  const personalRecord = !isStudentView
+                    ? workoutProgressAll.find(p => p.exerciseIndex === i)
+                    : null;
+                  return (
                   <div key={i} className="workout-exercise">
                     <ExerciseMedia exercise={ex} />
                     <span className="exercise-number">{i + 1}</span>
@@ -206,9 +249,34 @@ export default function Workouts() {
                         {ex.weight ? ` • ${ex.weight}kg` : ''}
                         {ex.rest ? ` • ${ex.rest}s` : ''}
                       </span>
+                      {!isStudentView && personalRecord?.actualWeight && (
+                        <span className="exercise-recorded-weight">Carga registrada: {personalRecord.actualWeight}kg</span>
+                      )}
                     </div>
+                    {isStudentView && (
+                      <div className="exercise-progress-controls">
+                        <input
+                          type="number"
+                          className="form-input exercise-weight-input"
+                          placeholder="kg"
+                          min="0"
+                          step="0.5"
+                          value={exProgress?.actualWeight || ''}
+                          onChange={e => handleExerciseWeightChange(workout, i, e.target.value)}
+                          aria-label={`Carga utilizada no exercício ${i + 1}`}
+                        />
+                        <input
+                          type="checkbox"
+                          className="exercise-checkbox"
+                          checked={exProgress?.completed === true}
+                          onChange={() => handleToggleExercise(workout, i)}
+                          aria-label={`Marcar exercício ${i + 1} como concluído`}
+                        />
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="workout-actions">
@@ -390,6 +458,30 @@ export default function Workouts() {
         </div>
       )}
 
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, name: '' })}
+        onConfirm={confirmDeleteWorkout}
+        title="Excluir treino"
+        message={`Tem certeza que deseja excluir ${confirmDelete.name}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
+
+      <Modal
+        open={pdfAlert.open}
+        onClose={() => setPdfAlert({ ...pdfAlert, open: false })}
+        title="PDF"
+        footer={
+          <button type="button" className="btn btn-primary" onClick={() => setPdfAlert({ ...pdfAlert, open: false })}>
+            Entendi
+          </button>
+        }
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.55 }}>{pdfAlert.message}</p>
+      </Modal>
+
       <style>{`
         .workouts-grid {
           display: grid;
@@ -570,7 +662,43 @@ export default function Workouts() {
         
         .exercise-info strong { font-size: 0.85rem; }
         .exercise-info span { font-size: 0.75rem; color: var(--text-muted); }
-        
+
+        .exercise-recorded-weight {
+          display: inline-block;
+          margin-top: 2px;
+          padding: 1px 6px;
+          border: 1px solid rgba(6,182,212,0.28);
+          border-radius: 999px;
+          background: rgba(6,182,212,0.1);
+          color: var(--text-primary);
+          font-size: 0.62rem;
+          font-weight: 600;
+        }
+
+        .exercise-progress-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+          margin-left: auto;
+        }
+
+        .exercise-weight-input {
+          width: 64px;
+          min-width: 64px;
+          padding: 4px 6px;
+          font-size: 0.75rem;
+          text-align: center;
+        }
+
+        .exercise-checkbox {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          accent-color: var(--primary, #ff6b35);
+          flex-shrink: 0;
+        }
+
         .workout-actions {
           display: flex;
           gap: 8px;
@@ -641,7 +769,8 @@ export default function Workouts() {
 
         @media (max-width: 768px) {
           .workouts-grid { grid-template-columns: 1fr; }
-          .workout-exercise { align-items: flex-start; }
+          .workout-exercise { align-items: flex-start; flex-wrap: wrap; }
+          .exercise-progress-controls { flex-wrap: wrap; margin-left: 0; width: 100%; justify-content: flex-end; }
           .exercise-media { width: 128px; min-width: 128px; }
           .exercise-media-badge { max-width: 66px; }
           .exercise-media-badge-level { display: none; }
