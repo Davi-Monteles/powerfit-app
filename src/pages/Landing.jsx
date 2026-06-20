@@ -1454,6 +1454,22 @@ export default function Landing() {
             min-height: 64px;
           }
 
+          .pf-hero {
+            background:
+              radial-gradient(circle at 84% 16%, rgba(255, 91, 34, 0.18), transparent 34%),
+              linear-gradient(150deg, #050914 0%, #07111f 58%, #0d1f34 100%);
+          }
+
+          .pf-hero-image {
+            display: none;
+          }
+
+          .pf-hero::before {
+            background:
+              linear-gradient(180deg, rgba(5, 9, 20, 0.08), rgba(5, 9, 20, 0.68) 100%),
+              radial-gradient(circle at 18% 42%, rgba(255, 91, 34, 0.16), transparent 36%);
+          }
+
           .pf-hero-content {
             padding-top: 64px;
           }
@@ -1474,15 +1490,21 @@ export default function Landing() {
           }
 
           .pf-status-row {
+            display: grid;
+            grid-template-columns: 1fr;
             align-items: stretch;
             gap: 8px;
           }
 
           .pf-status-row span {
             width: 100%;
+            height: auto;
             min-height: 36px;
+            padding: 8px 12px;
             justify-content: flex-start;
             font-size: 0.75rem;
+            line-height: 1.35;
+            white-space: normal;
           }
 
           .pf-feature-grid {
