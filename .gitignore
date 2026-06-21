@@ -21,6 +21,7 @@ test-results/
 output/
 .tmp/
 .cache/
+artifacts/
 
 # Local visual evidence screenshots
 powerfit-*.png
