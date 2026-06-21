@@ -264,6 +264,7 @@ export default function Landing() {
         <div className="pf-hero-image" aria-hidden="true">
           <img src={`${ASSET_PATH}/hero-trainer.jpg`} alt="" />
         </div>
+        <div className="pf-hero-grain" aria-hidden="true" />
         <div className="pf-container pf-hero-content">
           <div className="pf-hero-copy">
             <span className="pf-kicker">Plataforma para personal</span>
@@ -584,6 +585,19 @@ export default function Landing() {
           object-fit: cover;
           object-position: 58% 30%;
           filter: saturate(0.94) contrast(1.12) brightness(0.76);
+        }
+
+        /* Dither overlay: breaks up 8-bit gradient banding ("chuvisco") on dark
+           panels. Sub-perceptible at 1x; only randomizes the quantization steps. */
+        .pf-hero-grain {
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'160'%20height%3D'160'%3E%3Cfilter%20id%3D'n'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.9'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20type%3D'saturate'%20values%3D'0'%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncG%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncB%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
+          background-size: 64px 64px;
+          mix-blend-mode: overlay;
+          opacity: 0.6;
         }
 
         .pf-hero::before,
@@ -1461,7 +1475,13 @@ export default function Landing() {
           }
 
           .pf-hero-image {
-            display: none;
+            overflow: hidden;
+          }
+
+          .pf-hero-image img {
+            height: 100%;
+            object-fit: cover;
+            object-position: 62% 34%;
           }
 
           .pf-hero::before {
