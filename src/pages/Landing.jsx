@@ -305,6 +305,7 @@ export default function Landing() {
               const Icon = feature.icon;
               return (
                 <article className="pf-feature-card" key={feature.title}>
+                  <div className="pf-grain" aria-hidden="true" />
                   <div><Icon size={26} strokeWidth={1.6} /></div>
                   <h3>{feature.title}</h3>
                   <p>{feature.text}</p>
@@ -316,6 +317,7 @@ export default function Landing() {
       </section>
 
       <section className="pf-section pf-experience" id="alunos">
+        <div className="pf-grain" aria-hidden="true" />
         <div className="pf-container pf-experience-stack">
           <div className="pf-experience-row student">
             <div className="pf-mockup-wrap">
@@ -600,6 +602,17 @@ export default function Landing() {
           opacity: 0.6;
         }
 
+        .pf-grain {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'160'%20height%3D'160'%3E%3Cfilter%20id%3D'n'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.9'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20type%3D'saturate'%20values%3D'0'%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncG%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncB%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
+          background-size: 64px 64px;
+          mix-blend-mode: overlay;
+          opacity: 0.6;
+        }
+
         .pf-hero::before,
         .pf-hero::after {
           content: '';
@@ -803,6 +816,10 @@ export default function Landing() {
           z-index: 1;
         }
 
+        .pf-feature-card > .pf-grain {
+          z-index: 0;
+        }
+
         .pf-feature-card div {
           width: 52px;
           height: 52px;
@@ -829,10 +846,14 @@ export default function Landing() {
         }
 
         .pf-experience {
+          position: relative;
+          isolation: isolate;
           background: linear-gradient(180deg, #050914 0%, #07111f 48%, #050914 100%);
         }
 
         .pf-experience-stack {
+          position: relative;
+          z-index: 1;
           display: grid;
           gap: 116px;
         }

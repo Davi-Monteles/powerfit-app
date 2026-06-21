@@ -64,3 +64,33 @@ assert.match(
   /@media \(max-width: 620px\)[\s\S]*\.pf-status-row span\s*\{[\s\S]*line-height:\s*1\.35;/,
   'mobile status chips must keep wrapped lines readable',
 );
+
+assert.match(
+  landingSource,
+  /\.pf-grain\s*\{[\s\S]*feTurbulence[\s\S]*mix-blend-mode:\s*overlay;[\s\S]*pointer-events:\s*none;[\s\S]*\}/,
+  'reusable .pf-grain dithering utility must exist with feTurbulence, overlay blend, and pointer-events none',
+);
+
+assert.match(
+  landingSource,
+  /className="pf-section pf-experience"[\s\S]*<div className="pf-grain" aria-hidden="true" \/>/,
+  'pf-experience section must include a pf-grain overlay div',
+);
+
+assert.match(
+  landingSource,
+  /className="pf-feature-card"[\s\S]*<div className="pf-grain" aria-hidden="true" \/>/,
+  'pf-feature-card must include a pf-grain overlay div',
+);
+
+assert.match(
+  landingSource,
+  /\.pf-feature-card > \.pf-grain\s*\{[\s\S]*z-index:\s*0;/,
+  'pf-feature-card grain overlay must sit below card content (z-index 0)',
+);
+
+assert.match(
+  landingSource,
+  /\.pf-experience\s*\{[\s\S]*isolation:\s*isolate;/,
+  'pf-experience must create a stacking context for the grain overlay',
+);
