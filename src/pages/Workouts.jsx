@@ -9,6 +9,36 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Modal from '../components/Modal';
 import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
 import { getExerciseProgress, getAllProgressForWorkout, saveProgress, toggleExercise, isWorkoutFullyCompleted } from '../lib/exercise-progress';
+import { canStudentDeleteAIWorkout, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
+
+function ExerciseCustomMedia({ exercise }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageUrl = String(exercise?.imageUrl || '').trim();
+  const videoUrl = String(exercise?.videoUrl || '').trim();
+
+  if (!imageUrl && !videoUrl) return null;
+
+  return (
+    <div className="exercise-custom-media">
+      {imageUrl && (imageFailed ? (
+        <span className="exercise-image-fallback">Imagem indisponivel</span>
+      ) : (
+        <img
+          className="exercise-custom-image"
+          src={imageUrl}
+          alt={`Imagem de ${exercise?.name || 'exercicio'}`}
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+        />
+      ))}
+      {videoUrl && (
+        <a className="exercise-video-link" href={videoUrl} target="_blank" rel="noreferrer">
+          Ver video
+        </a>
+      )}
+    </div>
+  );
+}
 
 export default function Workouts() {
   const [search, setSearch] = useState('');
@@ -16,7 +46,7 @@ export default function Workouts() {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '' });
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '', source: null });
   const [pdfAlert, setPdfAlert] = useState({ open: false, message: '' });
   const { user } = useAuth();
   const addToast = useToast();
@@ -26,7 +56,7 @@ export default function Workouts() {
   const isStudentView = user?.type === 'aluno';
   const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
 
-  const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '' };
+  const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '', videoUrl: '', imageUrl: '' };
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
   const [form, setForm] = useState(emptyForm);
 
@@ -83,29 +113,44 @@ export default function Workouts() {
     if (isStudentView) return;
     if (!form.name) { addToast('Nome do treino é obrigatório', 'error'); return; }
     if (form.exercises.some(ex => !ex.name)) { addToast('Preencha o nome de todos os exercícios', 'error'); return; }
-    await saveWorkout(form);
+    const exercises = form.exercises.map(normalizeWorkoutExerciseMediaFields);
+    const mediaValidation = validateWorkoutExerciseMediaUrls(exercises);
+    if (!mediaValidation.valid) { addToast(mediaValidation.message, 'error'); return; }
+    await saveWorkout({ ...form, exercises });
     await forceSyncData();
     setShowModal(false);
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
 
   const handleDelete = (workoutOrId) => {
-    if (user?.type === 'aluno') {
+    const workout = typeof workoutOrId === 'object' ? workoutOrId : workouts.find(item => item.id === workoutOrId);
+
+    if (user?.type === 'aluno' && !canStudentDeleteAIWorkout(workout)) {
       addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
       return;
     }
 
-    const workout = typeof workoutOrId === 'object' ? workoutOrId : workouts.find(item => item.id === workoutOrId);
     const id = workout?.id || workoutOrId;
 
-    setConfirmDelete({ open: true, id, name: workout?.name || 'este treino' });
+    setConfirmDelete({ open: true, id, name: workout?.name || 'este treino', source: workout?.source || null });
   };
 
   const confirmDeleteWorkout = async () => {
-    const { id } = confirmDelete;
+    const { id, source } = confirmDelete;
     if (!id) return;
+
+    if (isStudentView) {
+      const workout = workouts.find(item => item.id === id) || { source };
+      if (!canStudentDeleteAIWorkout(workout)) {
+        setConfirmDelete({ open: false, id: null, name: '', source: null });
+        addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
+        return;
+      }
+    }
+
     await deleteWorkout(id);
-    setConfirmDelete({ open: false, id: null, name: '' });
+    setConfirmDelete({ open: false, id: null, name: '', source: null });
+    if (isStudentView) setFreshStudentWorkouts(previous => previous?.filter(workout => workout.id !== id) || previous);
     if (!isStudentView) await forceSyncData();
     addToast('Treino excluido', 'info');
   };
@@ -218,6 +263,7 @@ export default function Workouts() {
             const completion = isStudentView ? getWorkoutCompletion(user, workout.id) : null;
             const isCompleted = workout.status === 'completed' || completion?.status === 'completed';
             const workoutProgressAll = !isStudentView ? getAllProgressForWorkout(workout.id) : [];
+            const canDeleteStudentAI = isStudentView && canStudentDeleteAIWorkout(workout);
             return (
             <div key={workout.scheduleId || workout.id} className="card card-glow workout-card">
               <div className="workout-header">
@@ -252,6 +298,7 @@ export default function Workouts() {
                       {!isStudentView && personalRecord?.actualWeight && (
                         <span className="exercise-recorded-weight">Carga registrada: {personalRecord.actualWeight}kg</span>
                       )}
+                      <ExerciseCustomMedia exercise={ex} />
                     </div>
                     {isStudentView && (
                       <div className="exercise-progress-controls">
@@ -301,6 +348,11 @@ export default function Workouts() {
                     <Trash2 size={16} />
                   </button>
                 )}
+                {canDeleteStudentAI && (
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA">
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
             );
@@ -330,6 +382,11 @@ export default function Workouts() {
                   {renderPDFButton(workout)}
                   {!isStudentView && (
                     <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {isStudentView && canStudentDeleteAIWorkout(workout) && (
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA">
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -405,6 +462,8 @@ export default function Workouts() {
                           </div>
                         </div>
                         <input className="form-input" placeholder="Observações (opcional)" value={ex.notes} onChange={e => updateExercise(idx, 'notes', e.target.value)} style={{ gridColumn: '1 / -1' }} />
+                        <input className="form-input" placeholder="Link do vídeo no YouTube (opcional)" value={ex.videoUrl || ''} onChange={e => updateExercise(idx, 'videoUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
+                        <input className="form-input" placeholder="URL da imagem (opcional)" value={ex.imageUrl || ''} onChange={e => updateExercise(idx, 'imageUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
                       </div>
                       <button type="button" className="exercise-form-delete" onClick={() => removeExercise(idx)} title="Remover">
                         <X size={16} />
@@ -460,7 +519,7 @@ export default function Workouts() {
 
       <ConfirmDialog
         open={confirmDelete.open}
-        onClose={() => setConfirmDelete({ open: false, id: null, name: '' })}
+        onClose={() => setConfirmDelete({ open: false, id: null, name: '', source: null })}
         onConfirm={confirmDeleteWorkout}
         title="Excluir treino"
         message={`Tem certeza que deseja excluir ${confirmDelete.name}? Esta ação não pode ser desfeita.`}
@@ -662,6 +721,49 @@ export default function Workouts() {
         
         .exercise-info strong { font-size: 0.85rem; }
         .exercise-info span { font-size: 0.75rem; color: var(--text-muted); }
+
+        .exercise-custom-media {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          max-width: 100%;
+          margin-top: 8px;
+        }
+
+        .exercise-custom-image {
+          display: block;
+          width: min(180px, 100%);
+          max-width: 100%;
+          max-height: 120px;
+          object-fit: cover;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-image-fallback,
+        .exercise-video-link {
+          display: inline-flex;
+          align-items: center;
+          min-height: 30px;
+          padding: 5px 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.12);
+          font-size: 0.72rem;
+          font-weight: 700;
+        }
+
+        .exercise-image-fallback {
+          color: var(--text-muted);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-video-link {
+          color: var(--primary);
+          background: rgba(255,107,53,0.1);
+          text-decoration: none;
+        }
 
         .exercise-recorded-weight {
           display: inline-block;
