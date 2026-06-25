@@ -167,7 +167,7 @@ export default function Auth({ onLogin }) {
               <div className="input-icon-wrapper">
                 <Lock size={18} className="input-icon" />
                 <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="••••••" autoComplete="current-password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required />
-                <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)}>
+                <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
@@ -209,7 +209,7 @@ export default function Auth({ onLogin }) {
               <div className="input-icon-wrapper">
                 <Lock size={18} className="input-icon" />
                 <input type={showPassword ? 'text' : 'password'} className="form-input input-with-icon" placeholder="Mín. 6 caracteres" autoComplete="new-password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)} required minLength={6} />
-                <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)}>
+                <button type="button" className="input-toggle" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>

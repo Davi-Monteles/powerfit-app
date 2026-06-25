@@ -65,6 +65,8 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 400ms ease;
+
+  --pf-grain-texture: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'160'%20height%3D'160'%3E%3Cfilter%20id%3D'n'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'0.9'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20type%3D'saturate'%20values%3D'0'%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncG%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3CfeFuncB%20type%3D'linear'%20slope%3D'1.35'%20intercept%3D'-0.1750'%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D'100%25'%20height%3D'100%25'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E");
 }
 
 /* ========== LIGHT THEME ========== */
@@ -226,7 +228,35 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
+  position: relative;
+  isolation: isolate;
   transition: all var(--transition-normal);
+}
+
+.card::after,
+.stat-card::after,
+.auth-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: var(--pf-grain-texture);
+  background-size: 64px 64px;
+  mix-blend-mode: overlay;
+  opacity: 0.42;
+}
+
+.card > *,
+.stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-bg::after {
+  border-radius: 0;
+  opacity: 0.35;
 }
 
 .card:hover {
@@ -406,6 +436,8 @@ tr:last-child td { border-bottom: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 16px;

@@ -340,16 +340,16 @@ export default function Workouts() {
                 {renderPDFButton(workout)}
                 {!isStudentView && (
                   <>
-                    <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>
+                    <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)} aria-label={`Editar treino ${workout.name || ''}`}><Edit2 size={16} /></button>
                   </>
                 )}
                 {!isStudentView && (
-                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino" aria-label={`Excluir treino ${workout.name || ''}`}>
                     <Trash2 size={16} />
                   </button>
                 )}
                 {canDeleteStudentAI && (
-                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA">
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA" aria-label={`Excluir treino da IA ${workout.name || ''}`}>
                     <Trash2 size={16} />
                   </button>
                 )}
@@ -381,12 +381,12 @@ export default function Workouts() {
                 <div className="workout-actions">
                   {renderPDFButton(workout)}
                   {!isStudentView && (
-                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino">
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino" aria-label={`Excluir treino ${workout.name || ''}`}>
                       <Trash2 size={16} />
                     </button>
                   )}
                   {isStudentView && canStudentDeleteAIWorkout(workout) && (
-                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA">
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA" aria-label={`Excluir treino da IA ${workout.name || ''}`}>
                       <Trash2 size={16} />
                     </button>
                   )}
@@ -403,7 +403,7 @@ export default function Workouts() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
               <h3>{editingWorkout ? 'Editar Treino' : 'Novo Treino'}</h3>
-              <button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => setShowModal(false)} aria-label="Fechar modal"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave}>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
@@ -465,7 +465,7 @@ export default function Workouts() {
                         <input className="form-input" placeholder="Link do vídeo no YouTube (opcional)" value={ex.videoUrl || ''} onChange={e => updateExercise(idx, 'videoUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
                         <input className="form-input" placeholder="URL da imagem (opcional)" value={ex.imageUrl || ''} onChange={e => updateExercise(idx, 'imageUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
                       </div>
-                      <button type="button" className="exercise-form-delete" onClick={() => removeExercise(idx)} title="Remover">
+                      <button type="button" className="exercise-form-delete" onClick={() => removeExercise(idx)} title="Remover" aria-label={`Remover exercício ${idx + 1}`}>
                         <X size={16} />
                       </button>
                     </div>
@@ -488,7 +488,7 @@ export default function Workouts() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h3>📱 Enviar via WhatsApp</h3>
-              <button className="modal-close" onClick={() => setShowWhatsAppModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => setShowWhatsAppModal(false)} aria-label="Fechar envio por WhatsApp"><X size={20} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
               Enviar <strong>{selectedWorkout?.name}</strong> para qual aluno?

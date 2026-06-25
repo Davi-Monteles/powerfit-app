@@ -75,7 +75,7 @@ export default function Sidebar({ open, onClose }) {
             <div className="logo-icon"><Zap size={20} /></div>
             <span className="logo-text">PowerFit</span>
           </div>
-          <button className="sidebar-close" onClick={onClose}><X size={20} /></button>
+          <button className="sidebar-close" onClick={onClose} aria-label="Fechar menu"><X size={20} /></button>
         </div>
 
         <nav className="sidebar-nav">
