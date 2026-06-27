@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   canStudentDeleteAIWorkout,
+  getWorkoutExerciseImageUrls,
   isValidYouTubeUrl,
   normalizeWorkoutExerciseMediaFields,
   validateWorkoutExerciseMediaUrls,
@@ -31,6 +32,12 @@ const normalizedExercise = normalizeWorkoutExerciseMediaFields({
 });
 assert.equal(normalizedExercise.videoUrl, 'https://youtu.be/squat-demo');
 assert.equal(normalizedExercise.imageUrl, 'https://example.com/squat.jpg');
+
+assert.deepEqual(getWorkoutExerciseImageUrls([
+  { exercises: [{ imageUrl: ' https://example.com/a.jpg ' }, { imageUrl: '' }] },
+  { exercises: [{ imageUrl: 'https://example.com/a.jpg' }, { imageUrl: 'https://example.com/b.jpg' }] },
+  { exercises: null },
+]), ['https://example.com/a.jpg', 'https://example.com/b.jpg']);
 
 assert.equal(canStudentDeleteAIWorkout({ source: 'student_ai', aiGenerated: false }), true);
 assert.equal(canStudentDeleteAIWorkout({ source: 'rascunho_anamnese', aiGenerated: true }), false);

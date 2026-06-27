@@ -27,6 +27,20 @@ export function normalizeWorkoutExerciseMediaFields(exercise = {}) {
   };
 }
 
+export function getWorkoutExerciseImageUrls(workouts = []) {
+  const urls = new Set();
+
+  for (const workout of workouts) {
+    const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
+    for (const exercise of exercises) {
+      const imageUrl = String(exercise?.imageUrl || '').trim();
+      if (imageUrl) urls.add(imageUrl);
+    }
+  }
+
+  return [...urls];
+}
+
 export function validateWorkoutExerciseMediaUrls(exercises = []) {
   for (const exercise of exercises) {
     const videoUrl = String(exercise?.videoUrl || '').trim();

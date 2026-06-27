@@ -9,12 +9,27 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Modal from '../components/Modal';
 import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
 import { getExerciseProgress, getAllProgressForWorkout, saveProgress, toggleExercise, isWorkoutFullyCompleted } from '../lib/exercise-progress';
-import { canStudentDeleteAIWorkout, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
+import { canStudentDeleteAIWorkout, getWorkoutExerciseImageUrls, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
 
-function ExerciseCustomMedia({ exercise }) {
+function isBrowserOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function cacheExerciseImagesForOffline(imageUrls) {
+  if (!imageUrls.length || typeof navigator === 'undefined' || isBrowserOffline() || !('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.ready
+    .then(registration => {
+      registration.active?.postMessage({ type: 'CACHE_EXERCISE_IMAGES', urls: imageUrls });
+    })
+    .catch(() => undefined);
+}
+
+function ExerciseCustomMedia({ exercise, isOffline }) {
   const [imageFailed, setImageFailed] = useState(false);
   const imageUrl = String(exercise?.imageUrl || '').trim();
   const videoUrl = String(exercise?.videoUrl || '').trim();
+  const videoLabel = isOffline ? 'Ver vídeo disponível com internet' : 'Ver vídeo';
 
   if (!imageUrl && !videoUrl) return null;
 
@@ -32,8 +47,16 @@ function ExerciseCustomMedia({ exercise }) {
         />
       ))}
       {videoUrl && (
-        <a className="exercise-video-link" href={videoUrl} target="_blank" rel="noreferrer">
-          Ver video
+        <a
+          className={`exercise-video-link${isOffline ? ' exercise-video-link-offline' : ''}`}
+          href={videoUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-disabled={isOffline ? 'true' : undefined}
+          aria-label={videoLabel}
+          onClick={isOffline ? event => event.preventDefault() : undefined}
+        >
+          {isOffline ? 'Ver video (com internet)' : 'Ver video'}
         </a>
       )}
     </div>
@@ -55,6 +78,7 @@ export default function Workouts() {
   const { refresh: refreshProgress } = useStorageSync('exercise-progress');
   const isStudentView = user?.type === 'aluno';
   const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
+  const [isOffline, setIsOffline] = useState(isBrowserOffline);
 
   const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '', videoUrl: '', imageUrl: '' };
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
@@ -94,6 +118,24 @@ export default function Workouts() {
   const filtered = workouts.filter(w => (w.name || '').toLowerCase().includes(search.toLowerCase()));
   const activeFiltered = isStudentView ? filtered.filter(w => w.status !== 'archived') : filtered;
   const archivedFiltered = isStudentView ? filtered.filter(w => w.status === 'archived') : [];
+  const exerciseImageCacheKey = getWorkoutExerciseImageUrls(activeFiltered).join('\n');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOffline || !exerciseImageCacheKey) return;
+    cacheExerciseImagesForOffline(exerciseImageCacheKey.split('\n'));
+  }, [exerciseImageCacheKey, isOffline]);
 
   const openNew = () => {
     if (isStudentView) return;
@@ -298,7 +340,7 @@ export default function Workouts() {
                       {!isStudentView && personalRecord?.actualWeight && (
                         <span className="exercise-recorded-weight">Carga registrada: {personalRecord.actualWeight}kg</span>
                       )}
-                      <ExerciseCustomMedia exercise={ex} />
+                      <ExerciseCustomMedia exercise={ex} isOffline={isOffline} />
                     </div>
                     {isStudentView && (
                       <div className="exercise-progress-controls">
@@ -763,6 +805,13 @@ export default function Workouts() {
           color: var(--primary);
           background: rgba(255,107,53,0.1);
           text-decoration: none;
+        }
+
+        .exercise-video-link-offline {
+          color: var(--text-muted);
+          background: rgba(255,255,255,0.06);
+          cursor: not-allowed;
+          opacity: 0.75;
         }
 
         .exercise-recorded-weight {

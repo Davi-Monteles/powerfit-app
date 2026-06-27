@@ -1,4 +1,7 @@
-const CACHE_NAME = 'powerfit-pwa-v3';
+const CACHE_NAME = 'powerfit-pwa-v4';
+const EXERCISE_MEDIA_CACHE = 'powerfit-exercise-media-v1';
+const EXERCISE_MEDIA_LIMIT = 60;
+const exerciseImageUrls = new Set();
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,6 +9,114 @@ const ASSETS_TO_CACHE = [
   '/favicon.svg',
   '/pwa-icon.svg'
 ];
+
+function normalizeExerciseImageUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim(), self.location.origin);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function getExerciseImageUrls(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map(normalizeExerciseImageUrl).filter(Boolean))];
+}
+
+function createExerciseImageRequest(url) {
+  const parsed = new URL(url);
+  if (parsed.origin === self.location.origin) return new Request(parsed.href);
+  return new Request(parsed.href, { mode: 'no-cors', credentials: 'omit' });
+}
+
+function canCacheExerciseImage(response) {
+  return response && (response.ok || response.type === 'opaque');
+}
+
+async function findCachedExerciseImageRequest(cache, url) {
+  const keys = await cache.keys();
+  return keys.find(request => request.url === url);
+}
+
+async function touchCachedExerciseImage(cache, request, response) {
+  await cache.delete(request);
+  await cache.put(request, response.clone());
+  return response;
+}
+
+async function trimExerciseImageCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= EXERCISE_MEDIA_LIMIT) return;
+
+  await Promise.all(keys.slice(0, keys.length - EXERCISE_MEDIA_LIMIT).map(request => cache.delete(request)));
+}
+
+async function putExerciseImage(cache, request, response) {
+  await cache.put(request, response.clone());
+  await trimExerciseImageCache(cache);
+}
+
+async function cacheExerciseImageRequest(request) {
+  const cache = await caches.open(EXERCISE_MEDIA_CACHE);
+  const cachedRequest = await findCachedExerciseImageRequest(cache, request.url);
+
+  if (cachedRequest) {
+    const cachedResponse = await cache.match(cachedRequest);
+    if (cachedResponse) return touchCachedExerciseImage(cache, cachedRequest, cachedResponse);
+  }
+
+  if (!exerciseImageUrls.has(request.url)) {
+    try {
+      return await fetch(request);
+    } catch {
+      const url = new URL(request.url);
+      const cachedStatic = await caches.match(request, { ignoreVary: true }) || await caches.match(url.pathname, { ignoreVary: true });
+      if (cachedStatic) return cachedStatic;
+      return new Response('Offline', {
+        status: 503,
+        statusText: 'Offline',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+  }
+
+  try {
+    const response = await fetch(request);
+    if (canCacheExerciseImage(response)) await putExerciseImage(cache, request, response);
+    return response;
+  } catch {
+    return new Response('Offline', {
+      status: 503,
+      statusText: 'Offline',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+}
+
+async function prefetchExerciseImages(urls) {
+  const cache = await caches.open(EXERCISE_MEDIA_CACHE);
+
+  for (const url of urls.slice(0, EXERCISE_MEDIA_LIMIT)) {
+    const cachedRequest = await findCachedExerciseImageRequest(cache, url);
+    if (cachedRequest) {
+      const cachedResponse = await cache.match(cachedRequest);
+      if (cachedResponse) await touchCachedExerciseImage(cache, cachedRequest, cachedResponse);
+      continue;
+    }
+
+    try {
+      const request = createExerciseImageRequest(url);
+      const response = await fetch(request);
+      if (canCacheExerciseImage(response)) await putExerciseImage(cache, request, response);
+    } catch (err) {
+      console.log('Failed to cache exercise image', url, err);
+    }
+  }
+
+  await trimExerciseImageCache(cache);
+}
 
 async function cacheAppShell() {
   const cache = await caches.open(CACHE_NAME);
@@ -40,11 +151,20 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      const cachesToKeep = new Set([CACHE_NAME, EXERCISE_MEDIA_CACHE]);
       return Promise.all(
-        cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
+        cacheNames.filter(name => !cachesToKeep.has(name)).map(name => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'CACHE_EXERCISE_IMAGES') return;
+
+  const urls = getExerciseImageUrls(event.data.urls);
+  urls.forEach(url => exerciseImageUrls.add(url));
+  event.waitUntil(prefetchExerciseImages(urls));
 });
 
 self.addEventListener('fetch', (event) => {
@@ -70,7 +190,14 @@ self.addEventListener('fetch', (event) => {
     url.origin === self.location.origin &&
     (url.pathname.startsWith('/assets/') || ASSETS_TO_CACHE.includes(url.pathname));
 
-  if (!isHttpRequest || isViteDevServer || isViteDevTraffic || isSensitiveRequest) return;
+  if (!isHttpRequest || isViteDevServer || isViteDevTraffic) return;
+
+  if (event.request.destination === 'image') {
+    event.respondWith(cacheExerciseImageRequest(event.request));
+    return;
+  }
+
+  if (isSensitiveRequest) return;
 
   event.respondWith(
     fetch(event.request)
