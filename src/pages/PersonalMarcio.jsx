@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, MapPin, MessageCircle, ShieldAlert, Star, Target, Users } from 'lucide-react';
 import { saveTrainerLead } from '../lib/trainer-leads';
 
+const MARCIO_TRAINER_ID = '2bc16827-bee6-4b71-b9aa-11cfa46db189';
 const whatsappMessage = encodeURIComponent('Oi, Marcio! Vi seu perfil demo no PowerFit e tenho interesse em treinar com voce.');
 const differentiators = [
   { icon: Target, title: 'Plano direto ao objetivo', text: 'Treinos demo pensados para hipertrofia, emagrecimento e condicionamento.' },
@@ -13,12 +14,24 @@ const differentiators = [
 export default function PersonalMarcio() {
   const [form, setForm] = useState({ name: '', objective: '' });
   const [savedLead, setSavedLead] = useState(null);
+  const [leadError, setLeadError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const lead = saveTrainerLead(form);
-    setSavedLead(lead);
-    setForm({ name: '', objective: '' });
+    setLeadError('');
+    setSavedLead(null);
+    setIsSubmitting(true);
+
+    try {
+      const lead = await saveTrainerLead(form, MARCIO_TRAINER_ID);
+      setSavedLead(lead);
+      setForm({ name: '', objective: '' });
+    } catch {
+      setLeadError('Nao foi possivel enviar agora. Confira sua conexao e tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -61,7 +74,7 @@ export default function PersonalMarcio() {
         <section className="public-trainer-lead card">
           <div>
             <h2>Tenho interesse</h2>
-            <p>Deixe nome e objetivo se quiser. Este cadastro fica salvo apenas neste navegador para demonstracao.</p>
+            <p>Deixe seu nome e objetivo. Em breve o personal entra em contato.</p>
           </div>
           <form onSubmit={handleSubmit}>
             <label>
@@ -73,15 +86,16 @@ export default function PersonalMarcio() {
               <textarea className="form-textarea" value={form.objective} onChange={event => setForm(prev => ({ ...prev, objective: event.target.value }))} placeholder="Ex: ganhar massa, emagrecer, voltar a treinar" />
             </label>
             <div className="public-trainer-actions">
-              <button type="submit" className="btn btn-primary"><CheckCircle2 size={18} /> Tenho interesse</button>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}><CheckCircle2 size={18} /> {isSubmitting ? 'Enviando...' : 'Tenho interesse'}</button>
               <a className="btn btn-whatsapp" href={`https://wa.me/?text=${whatsappMessage}`} target="_blank" rel="noreferrer"><MessageCircle size={18} /> WhatsApp</a>
             </div>
           </form>
           {savedLead && (
             <div className="public-trainer-confirmation" role="status">
-              Interesse salvo no demo. Status inicial: <strong>{savedLead.status}</strong>.
+              Interessado! Em breve o personal entra em contato.
             </div>
           )}
+          {leadError && <div className="public-trainer-error" role="alert">{leadError}</div>}
         </section>
 
         <aside className="public-trainer-demo-warning">
@@ -232,6 +246,7 @@ export default function PersonalMarcio() {
         }
 
         .public-trainer-confirmation,
+        .public-trainer-error,
         .public-trainer-demo-warning {
           grid-column: 1 / -1;
           border-radius: var(--radius-md);
@@ -243,6 +258,12 @@ export default function PersonalMarcio() {
           background: rgba(34, 197, 94, 0.12);
           border: 1px solid rgba(34, 197, 94, 0.25);
           color: var(--success);
+        }
+
+        .public-trainer-error {
+          background: rgba(239, 68, 68, 0.12);
+          border: 1px solid rgba(239, 68, 68, 0.25);
+          color: var(--danger);
         }
 
         .public-trainer-demo-warning {

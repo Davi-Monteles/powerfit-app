@@ -16,7 +16,9 @@ export default function Dashboard() {
   const plan = getUserPlan();
   const usage = getStudentUsage();
   const isVip = isVipUser(user?.email);
-  const [trainerLeads, setTrainerLeads] = useState(() => getTrainerLeads());
+  const loggedInTrainerId = user?.id || null;
+  const [trainerLeads, setTrainerLeads] = useState([]);
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   useStorageSync();
 
   const students = getStudents();
@@ -46,6 +48,30 @@ export default function Dashboard() {
     forceSyncData().catch(() => {});
   }, [user]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLeads() {
+      if (!loggedInTrainerId) {
+        setTrainerLeads([]);
+        return;
+      }
+
+      setIsLoadingLeads(true);
+      try {
+        const leads = await getTrainerLeads(loggedInTrainerId);
+        if (isMounted) setTrainerLeads(leads);
+      } catch {
+        if (isMounted) setTrainerLeads([]);
+      } finally {
+        if (isMounted) setIsLoadingLeads(false);
+      }
+    }
+
+    loadLeads();
+    return () => { isMounted = false; };
+  }, [loggedInTrainerId]);
+
   const quickActions = [
     { label: 'Novo Aluno', icon: Users, color: 'orange', path: '/students' },
     { label: 'Novo Treino', icon: Dumbbell, color: 'blue', path: '/workouts' },
@@ -64,10 +90,29 @@ export default function Dashboard() {
     addToast("Lembrete interno enviado com sucesso!", "success");
   };
 
-  const handleLeadStatusChange = (leadId, status) => {
+  const refreshTrainerLeads = async () => {
+    if (!loggedInTrainerId) return;
+
+    setIsLoadingLeads(true);
     try {
-      updateTrainerLeadStatus(leadId, status);
-      setTrainerLeads(getTrainerLeads());
+      const leads = await getTrainerLeads(loggedInTrainerId);
+      setTrainerLeads(leads);
+    } catch {
+      addToast('Nao foi possivel carregar os interessados.', 'error');
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  };
+
+  const handleLeadStatusChange = async (leadId, status) => {
+    if (!loggedInTrainerId) {
+      addToast('Nao foi possivel identificar o personal logado.', 'error');
+      return;
+    }
+
+    try {
+      const updatedLead = await updateTrainerLeadStatus(leadId, status, loggedInTrainerId);
+      setTrainerLeads(prev => prev.map(lead => lead.id === updatedLead.id ? updatedLead : lead));
       addToast('Status do interessado atualizado.', 'success');
     } catch {
       addToast('Nao foi possivel atualizar o status.', 'error');
@@ -214,13 +259,17 @@ export default function Dashboard() {
         <div className="dashboard-leads-header">
           <div>
             <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><MessageCircle size={18} style={{ color: 'var(--primary)' }} /> Interessados / Leads</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '4px' }}>Captados pelo perfil publico demo /personal/marcio.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '4px' }}>Leads recebidos na sua pagina publica.</p>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setTrainerLeads(getTrainerLeads())}>Atualizar</button>
+          <button className="btn btn-ghost btn-sm" onClick={refreshTrainerLeads} disabled={isLoadingLeads}>{isLoadingLeads ? 'Atualizando...' : 'Atualizar'}</button>
         </div>
-        {trainerLeads.length === 0 ? (
+        {isLoadingLeads && trainerLeads.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '16px 0' }}>
-            Nenhum interessado capturado neste navegador.
+            Carregando interessados...
+          </p>
+        ) : trainerLeads.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '16px 0' }}>
+            Nenhum interessado ainda. Compartilhe sua pagina publica!
           </p>
         ) : (
           <div className="dashboard-leads-list">
@@ -229,7 +278,7 @@ export default function Dashboard() {
                 <div>
                   <strong>{lead.name || 'Interessado sem nome'}</strong>
                   <p>{lead.objective || 'Objetivo nao informado'}</p>
-                  <small>{formatDisplayDate(lead.date)} • {lead.source}</small>
+                  <small>{formatDisplayDate(lead.created_at || lead.date)} • {lead.source}</small>
                 </div>
                 <select className="form-select" value={lead.status} onChange={event => handleLeadStatusChange(lead.id, event.target.value)} aria-label={`Status de ${lead.name || 'interessado'}`}>
                   <option value="novo">novo</option>
