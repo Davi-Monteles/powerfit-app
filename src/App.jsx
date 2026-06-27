@@ -23,6 +23,7 @@ import Toast from './components/Toast';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
 import PersonalMarcio from './pages/PersonalMarcio';
+import { AboutPage, PrivacyPage, SecurityPage, TermsPage, UpdatesPage } from './pages/PublicInfoPages';
 import { ensurePreviewDemoSeed, getPreviewDemoNotice } from './lib/preview-environment';
 
 function ProtectedRoute({ children, allowedType, requirePlan }) {
@@ -196,6 +197,11 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/personal/marcio" element={<PersonalMarcio />} />
+              <Route path="/sobre" element={<AboutPage />} />
+              <Route path="/atualizacoes" element={<UpdatesPage />} />
+              <Route path="/termos" element={<TermsPage />} />
+              <Route path="/privacidade" element={<PrivacyPage />} />
+              <Route path="/seguranca" element={<SecurityPage />} />
               <Route path="/upgrade" element={<Upgrade />} />
               <Route path="/auth" element={user?.type ? <Navigate to={isStudent ? '/aluno' : user.type === 'master' ? '/master' : '/dashboard'} replace /> : <Auth onLogin={handleLogin} />} />
               {/* Personal Trainer Routes */}

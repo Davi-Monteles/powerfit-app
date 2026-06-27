@@ -10,9 +10,7 @@ import {
   Check,
   ChevronRight,
   Dumbbell,
-  Facebook,
   FileText,
-  Instagram,
   LayoutDashboard,
   Menu,
   Play,
@@ -22,7 +20,6 @@ import {
   Users,
   Weight,
   X,
-  Youtube,
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../lib/app-context';
@@ -97,11 +94,57 @@ const galleryImages = [
 
 const tickerItems = ['MENOS PLANILHA', 'MAIS ACOMPANHAMENTO', 'EVOLUCAO REAL'];
 
-const footerLinks = {
-  Produto: ['Recursos', 'Para Personal', 'Para Alunos', 'Atualizacoes'],
-  Empresa: ['Sobre nos', 'Blog', 'Contato'],
-  Legal: ['Termos', 'Privacidade', 'Seguranca'],
-};
+const footerLinks = [
+  {
+    title: 'Produto',
+    links: [
+      { label: 'Produto', href: '#produto' },
+      { label: 'Recursos', href: '#recursos' },
+      { label: 'Para Personal', href: '#personal' },
+      { label: 'Para Aluno', href: '#alunos' },
+      { label: 'Atualizações', to: '/atualizacoes' },
+    ],
+  },
+  {
+    title: 'Empresa',
+    links: [
+      { label: 'Sobre nós', to: '/sobre' },
+      { label: 'Contato', href: 'https://wa.me/5598988666810', external: true },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Termos', to: '/termos' },
+      { label: 'Privacidade', to: '/privacidade' },
+      { label: 'Segurança', to: '/seguranca' },
+    ],
+  },
+];
+
+function FooterLink({ link }) {
+  if (link.to) return <Link to={link.to}>{link.label}</Link>;
+  return (
+    <a
+      href={link.href}
+      target={link.external ? '_blank' : undefined}
+      rel={link.external ? 'noreferrer' : undefined}
+      onClick={event => handleSectionLinkClick(event, link.href)}
+    >
+      {link.label}
+    </a>
+  );
+}
+
+function handleSectionLinkClick(event, href) {
+  if (!href?.startsWith('#')) return;
+  const section = document.querySelector(href);
+  if (!section) return;
+
+  event.preventDefault();
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  window.history.pushState(null, '', href);
+}
 
 function LogoMark() {
   return (
@@ -224,9 +267,9 @@ export default function Landing() {
           <LogoMark />
 
           <nav className="pf-nav-links" aria-label="Navegacao principal">
-            <a href="#recursos">Recursos</a>
-            <a href="#personal">Para Personal</a>
-            <a href="#alunos">Para Alunos</a>
+            <a href="#recursos" onClick={event => handleSectionLinkClick(event, '#recursos')}>Recursos</a>
+            <a href="#personal" onClick={event => handleSectionLinkClick(event, '#personal')}>Para Personal</a>
+            <a href="#alunos" onClick={event => handleSectionLinkClick(event, '#alunos')}>Para Aluno</a>
           </nav>
 
           <div className="pf-nav-actions">
@@ -251,16 +294,16 @@ export default function Landing() {
 
         {mobileMenuOpen && (
           <div className="pf-mobile-menu">
-            <a href="#recursos" onClick={handleCloseMenu}>Recursos</a>
-            <a href="#personal" onClick={handleCloseMenu}>Para Personal</a>
-            <a href="#alunos" onClick={handleCloseMenu}>Para Alunos</a>
+            <a href="#recursos" onClick={event => { handleSectionLinkClick(event, '#recursos'); handleCloseMenu(); }}>Recursos</a>
+            <a href="#personal" onClick={event => { handleSectionLinkClick(event, '#personal'); handleCloseMenu(); }}>Para Personal</a>
+            <a href="#alunos" onClick={event => { handleSectionLinkClick(event, '#alunos'); handleCloseMenu(); }}>Para Aluno</a>
             <Link to="/auth" onClick={handleCloseMenu}>Entrar</Link>
             <Link to="/auth?type=personal" className="pf-button primary" onClick={handleCloseMenu}>Comecar agora</Link>
           </div>
         )}
       </header>
 
-      <section className="pf-hero" aria-labelledby="pf-hero-title">
+      <section className="pf-hero" id="produto" aria-labelledby="pf-hero-title">
         <div className="pf-hero-image" aria-hidden="true">
           <img src={`${ASSET_PATH}/hero-trainer.jpg`} alt="" />
         </div>
@@ -274,7 +317,7 @@ export default function Landing() {
             <p>Organize treinos, acompanhe progresso e use IA como apoio para cuidar melhor da evolucao dos seus alunos.</p>
             <div className="pf-hero-actions">
               <AuthCta user={user} onCreateOther={handleCreateOther} />
-              <a href="#recursos" className="pf-button outline large">
+              <a href="#recursos" className="pf-button outline large" onClick={event => handleSectionLinkClick(event, '#recursos')}>
                 <Play size={15} fill="currentColor" /> Ver como funciona
               </a>
             </div>
@@ -394,16 +437,14 @@ export default function Landing() {
           <div className="pf-footer-brand">
             <LogoMark />
             <p>Treinos, alunos e evolucao.<br />Tudo em um so lugar.</p>
-            <div className="pf-social-links">
-              <a href="#recursos" aria-label="Instagram"><Instagram size={20} /></a>
-              <a href="#recursos" aria-label="YouTube"><Youtube size={20} /></a>
-              <a href="#recursos" aria-label="Facebook"><Facebook size={20} /></a>
-            </div>
+            <a className="pf-footer-whatsapp" href="https://wa.me/5598988666810" target="_blank" rel="noreferrer">
+              Falar no WhatsApp
+            </a>
           </div>
-          {Object.entries(footerLinks).map(([title, links]) => (
+          {footerLinks.map(({ title, links }) => (
             <div className="pf-footer-column" key={title}>
               <h3>{title}</h3>
-              {links.map(link => <a href="#recursos" key={link}>{link}</a>)}
+              {links.map(link => <FooterLink link={link} key={link.label} />)}
             </div>
           ))}
         </div>
@@ -422,6 +463,14 @@ export default function Landing() {
         .pf-container {
           width: min(1280px, calc(100% - 48px));
           margin: 0 auto;
+        }
+
+        #produto,
+        #recursos,
+        #personal,
+        #alunos,
+        #comece {
+          scroll-margin-top: 86px;
         }
 
         .pf-nav-shell {
@@ -1342,15 +1391,17 @@ export default function Landing() {
           line-height: 1.65;
         }
 
-        .pf-social-links {
-          display: flex;
-          gap: 16px;
-        }
-
-        .pf-social-links a,
+        .pf-footer-whatsapp,
         .pf-footer-column a {
           color: rgba(226, 232, 240, 0.48);
           transition: color 180ms ease;
+        }
+
+        .pf-footer-whatsapp {
+          display: inline-flex;
+          align-items: center;
+          font-size: 0.84rem;
+          font-weight: 800;
         }
 
         .pf-footer-column {
