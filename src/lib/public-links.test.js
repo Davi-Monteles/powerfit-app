@@ -8,6 +8,7 @@ const landingSource = readFileSync(resolve(__dirname, '../pages/Landing.jsx'), '
 const publicInfoSource = readFileSync(resolve(__dirname, '../pages/PublicInfoPages.jsx'), 'utf8');
 const appSource = readFileSync(resolve(__dirname, '../App.jsx'), 'utf8');
 const dashboardSource = readFileSync(resolve(__dirname, '../pages/Dashboard.jsx'), 'utf8');
+const personalMarcioSource = readFileSync(resolve(__dirname, '../pages/PersonalMarcio.jsx'), 'utf8');
 
 const expectedFooterContracts = [
   "{ label: 'Produto', href: '#produto' }",
@@ -45,6 +46,11 @@ assert.ok(
 assert.ok(
   dashboardSource.includes("path: '/personal/marcio'") && dashboardSource.includes('Compartilhar minha página'),
   'Dashboard quick actions must expose the public personal page',
+);
+
+assert.ok(
+  personalMarcioSource.includes('marcio.thaylson@gmail.com') && personalMarcioSource.includes('Márcio Carneiro'),
+  'Public Marcio page must render real Marcio data for the logged-in real account',
 );
 
 for (const route of ['/sobre', '/atualizacoes', '/termos', '/privacidade', '/seguranca']) {

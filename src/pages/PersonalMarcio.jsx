@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, MapPin, MessageCircle, ShieldAlert, Star, Target, Users } from 'lucide-react';
+import { useAuth } from '../lib/app-context';
 import { saveTrainerLead } from '../lib/trainer-leads';
 
 const MARCIO_TRAINER_ID = '2bc16827-bee6-4b71-b9aa-11cfa46db189';
+const REAL_MARCIO_EMAIL = 'marcio.thaylson@gmail.com';
+const REAL_MARCIO_NAME = 'Márcio Carneiro';
 const whatsappMessage = encodeURIComponent('Oi, Marcio! Vi seu perfil demo no PowerFit e tenho interesse em treinar com voce.');
 const differentiators = [
   { icon: Target, title: 'Plano direto ao objetivo', text: 'Treinos demo pensados para hipertrofia, emagrecimento e condicionamento.' },
@@ -12,10 +15,13 @@ const differentiators = [
 ];
 
 export default function PersonalMarcio() {
+  const { user } = useAuth();
   const [form, setForm] = useState({ name: '', objective: '' });
   const [savedLead, setSavedLead] = useState(null);
   const [leadError, setLeadError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isRealMarcio = user?.email?.toLowerCase() === REAL_MARCIO_EMAIL;
+  const trainerName = isRealMarcio ? (user.name || REAL_MARCIO_NAME) : 'Marcio Demo';
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -45,7 +51,7 @@ export default function PersonalMarcio() {
         <section className="public-trainer-hero card">
           <div>
             <span className="badge badge-primary">Personal Trainer Demo</span>
-            <h1>Marcio Demo</h1>
+            <h1>{trainerName}</h1>
             <p className="public-trainer-subtitle">Treinos objetivos, acompanhamento simples e evolucao visivel para alunos que querem constancia.</p>
             <div className="public-trainer-meta">
               <span><MapPin size={16} /> Sao Paulo / Vila Mariana demo</span>

@@ -20,6 +20,15 @@ const PREVIEW_DEMO_PERSONAL = {
   createdAt: PREVIEW_DEMO_DATE,
 };
 
+const REAL_MARCIO_PERSONAL = {
+  id: '2bc16827-bee6-4b71-b9aa-11cfa46db189',
+  email: 'marcio.thaylson@gmail.com',
+  password: 'powerfit2026',
+  name: 'Márcio Carneiro',
+  type: 'personal',
+  planId: 'starter',
+};
+
 const PREVIEW_DEMO_STUDENT = {
   id: PREVIEW_DEMO_IDS.student,
   studentId: PREVIEW_DEMO_IDS.student,
@@ -172,6 +181,14 @@ function hasStoredRecords(storage, key) {
   }
 }
 
+function ensureRealMarcioUser(storage) {
+  const users = JSON.parse(storage.getItem('powerfit_users') || '[]');
+  const index = users.findIndex(user => user.id === REAL_MARCIO_PERSONAL.id || user.email === REAL_MARCIO_PERSONAL.email);
+  if (index >= 0) users[index] = { ...users[index], ...REAL_MARCIO_PERSONAL };
+  else users.push(REAL_MARCIO_PERSONAL);
+  storage.setItem('powerfit_users', JSON.stringify(users));
+}
+
 export function getPreviewDemoNotice(hostname = globalThis.location?.hostname || '') {
   const normalizedHost = String(hostname).toLowerCase();
   return normalizedHost.endsWith('.vercel.app') ? PREVIEW_NOTICE : '';
@@ -186,9 +203,12 @@ export function ensurePreviewDemoSeed(hostname = globalThis.location?.hostname |
     hasStoredRecords(storage, 'powerfit_students') ||
     hasStoredRecords(storage, 'powerfit_workouts');
 
-  if (hasEssentialData) return { seeded: false, reason: 'existing-data' };
+  if (hasEssentialData) {
+    ensureRealMarcioUser(storage);
+    return { seeded: false, reason: 'existing-data' };
+  }
 
-  storage.setItem('powerfit_users', JSON.stringify([PREVIEW_DEMO_PERSONAL, { ...PREVIEW_DEMO_STUDENT }]));
+  storage.setItem('powerfit_users', JSON.stringify([PREVIEW_DEMO_PERSONAL, REAL_MARCIO_PERSONAL, { ...PREVIEW_DEMO_STUDENT }]));
   storage.setItem('powerfit_students', JSON.stringify([{ ...PREVIEW_DEMO_STUDENT, workout_schedule: PREVIEW_DEMO_STUDENT.workoutSchedule }]));
   storage.setItem('powerfit_workouts', JSON.stringify([PREVIEW_DEMO_WORKOUT]));
   storage.setItem('powerfit_schedule', JSON.stringify(PREVIEW_DEMO_SCHEDULE));
