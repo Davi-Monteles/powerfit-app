@@ -86,10 +86,13 @@ export default function StudentIntakeSummary({ students = [] }) {
       <div className="student-intake-badges">
         <StatusBadge profile={profile} />
         <span className="student-intake-badge neutral">Nível: {profile.experienceLevel}</span>
+        <span className={`student-intake-badge ${profile.parqNeedsMedicalAttention ? 'warning' : 'success'}`}>PAR-Q: {profile.parqStatus}</span>
       </div>
 
       <div className="student-intake-detail-grid">
         <DetailItem label="Objetivo principal" value={profile.goal} />
+        <DetailItem label="Saúde" value={profile.healthSummary} wide />
+        <DetailItem label="Medidas + IMC" value={profile.measurementsSummary} wide />
         <DetailItem label="Disponibilidade" value={availability} />
         <DetailItem label="Tempo por treino" value={profile.sessionDuration} />
         <DetailItem label="Equipamentos" value={profile.equipment} />

@@ -9,7 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Modal from '../components/Modal';
 import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
 import { getExerciseProgress, getAllProgressForWorkout, saveProgress, toggleExercise, isWorkoutFullyCompleted } from '../lib/exercise-progress';
-import { canStudentDeleteAIWorkout, getWorkoutExerciseImageUrls, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
+import { canStudentDeleteAIWorkout, getExerciseImageFrames, getWorkoutExerciseImageUrls, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
 
 function isBrowserOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -26,25 +26,56 @@ function cacheExerciseImagesForOffline(imageUrls) {
 }
 
 function ExerciseCustomMedia({ exercise, isOffline }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const imageUrl = String(exercise?.imageUrl || '').trim();
+  const [failedImageState, setFailedImageState] = useState({ key: '', urls: [] });
+  const imageFrames = getExerciseImageFrames(exercise);
+  const imageFrameKey = imageFrames.join('\n');
+  const failedImages = failedImageState.key === imageFrameKey ? failedImageState.urls : [];
+  const availableFrames = imageFrames.filter(url => !failedImages.includes(url));
+  const imageUrl = availableFrames[0] || '';
+  const hasAnimatedFrames = availableFrames.length === 2;
   const videoUrl = String(exercise?.videoUrl || '').trim();
   const videoLabel = isOffline ? 'Ver vídeo disponível com internet' : 'Ver vídeo';
+
+  const markImageFailed = (url) => {
+    setFailedImageState(prev => {
+      const urls = prev.key === imageFrameKey ? prev.urls : [];
+      return urls.includes(url) ? prev : { key: imageFrameKey, urls: [...urls, url] };
+    });
+  };
 
   if (!imageUrl && !videoUrl) return null;
 
   return (
     <div className="exercise-custom-media">
-      {imageUrl && (imageFailed ? (
-        <span className="exercise-image-fallback">Imagem indisponivel</span>
+      {imageFrames.length > 0 && (imageUrl ? (
+        hasAnimatedFrames ? (
+          <span className="exercise-frame-animation" role="img" aria-label={`Demonstração em 2 frames de ${exercise?.name || 'exercicio'}`}>
+            <img
+              className="exercise-custom-image exercise-frame-image exercise-frame-start"
+              src={availableFrames[0]}
+              alt={`Inicio do movimento de ${exercise?.name || 'exercicio'}`}
+              loading="lazy"
+              onError={() => markImageFailed(availableFrames[0])}
+            />
+            <img
+              className="exercise-custom-image exercise-frame-image exercise-frame-end"
+              src={availableFrames[1]}
+              alt={`Fim do movimento de ${exercise?.name || 'exercicio'}`}
+              loading="lazy"
+              onError={() => markImageFailed(availableFrames[1])}
+            />
+          </span>
+        ) : (
+          <img
+            className="exercise-custom-image"
+            src={imageUrl}
+            alt={`Imagem de ${exercise?.name || 'exercicio'}`}
+            loading="lazy"
+            onError={() => markImageFailed(imageUrl)}
+          />
+        )
       ) : (
-        <img
-          className="exercise-custom-image"
-          src={imageUrl}
-          alt={`Imagem de ${exercise?.name || 'exercicio'}`}
-          loading="lazy"
-          onError={() => setImageFailed(true)}
-        />
+        <span className="exercise-image-fallback">Imagem indisponivel</span>
       ))}
       {videoUrl && (
         <a
@@ -782,6 +813,43 @@ export default function Workouts() {
           border-radius: 12px;
           border: 1px solid rgba(255,255,255,0.12);
           background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-frame-animation {
+          position: relative;
+          display: block;
+          width: min(180px, 100%);
+          max-width: 100%;
+          aspect-ratio: 3 / 2;
+          max-height: 120px;
+          overflow: hidden;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-frame-animation .exercise-frame-image {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          max-height: none;
+          border: 0;
+          border-radius: inherit;
+          background: transparent;
+        }
+
+        .exercise-frame-start { animation: exercise-frame-start 1.4s steps(1, end) infinite; }
+        .exercise-frame-end { animation: exercise-frame-end 1.4s steps(1, end) infinite; }
+
+        @keyframes exercise-frame-start {
+          0%, 49.99% { opacity: 1; }
+          50%, 100% { opacity: 0; }
+        }
+
+        @keyframes exercise-frame-end {
+          0%, 49.99% { opacity: 0; }
+          50%, 100% { opacity: 1; }
         }
 
         .exercise-image-fallback,

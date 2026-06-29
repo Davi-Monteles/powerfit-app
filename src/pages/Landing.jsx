@@ -23,6 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../lib/app-context';
+import PwaInstallHint from '../components/PwaInstallHint';
 
 const ASSET_PATH = '/powerfit/landing';
 
@@ -321,6 +322,7 @@ export default function Landing() {
                 <Play size={15} fill="currentColor" /> Ver como funciona
               </a>
             </div>
+            <PwaInstallHint />
             <div className="pf-status-row" aria-label="Status do produto">
               <span><Check size={15} /> Projeto em evolucao com primeiros parceiros</span>
               <span><Check size={15} /> Foco em alunos, treinos e evolucao</span>

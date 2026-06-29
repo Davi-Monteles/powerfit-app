@@ -20,6 +20,7 @@ import MasterDashboard from './pages/MasterDashboard';
 import StudentHistory from './pages/StudentHistory';
 import Sidebar from './components/Sidebar';
 import Toast from './components/Toast';
+import { PWAInstallProvider } from './hooks/usePWAInstall';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
 import PersonalMarcio from './pages/PersonalMarcio';
@@ -193,7 +194,8 @@ export default function App() {
     <AuthContext.Provider value={{ user, login: handleLogin, logout: handleLogout }}>
       <ToastContext.Provider value={addToast}>
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
-          <BrowserRouter>
+          <PWAInstallProvider>
+            <BrowserRouter>
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/personal/marcio" element={<PersonalMarcio />} />
@@ -232,7 +234,8 @@ export default function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
                 <Toast toasts={toasts} />
-          </BrowserRouter>
+            </BrowserRouter>
+          </PWAInstallProvider>
         </ThemeContext.Provider>
       </ToastContext.Provider>
     </AuthContext.Provider>

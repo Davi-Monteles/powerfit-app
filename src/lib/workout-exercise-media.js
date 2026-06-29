@@ -20,11 +20,37 @@ export function isValidYouTubeUrl(value) {
 }
 
 export function normalizeWorkoutExerciseMediaFields(exercise = {}) {
+  const imageUrls = Array.isArray(exercise.imageUrls)
+    ? exercise.imageUrls.map(url => String(url || '').trim()).filter(Boolean).slice(0, 2)
+    : [];
+
   return {
     ...exercise,
     videoUrl: String(exercise.videoUrl || '').trim(),
     imageUrl: String(exercise.imageUrl || '').trim(),
+    imageStartUrl: String(exercise.imageStartUrl || '').trim(),
+    imageEndUrl: String(exercise.imageEndUrl || '').trim(),
+    imageUrls,
   };
+}
+
+export function getExerciseImageFrames(exercise = {}) {
+  const frameUrls = Array.isArray(exercise?.imageUrls) && exercise.imageUrls.length > 0
+    ? exercise.imageUrls
+    : [exercise?.imageStartUrl || exercise?.imageUrl, exercise?.imageEndUrl];
+  const urls = new Set();
+
+  for (const value of frameUrls) {
+    const url = String(value || '').trim();
+    if (url) urls.add(url);
+  }
+
+  if (urls.size === 0) {
+    const imageUrl = String(exercise?.imageUrl || '').trim();
+    if (imageUrl) urls.add(imageUrl);
+  }
+
+  return [...urls].slice(0, 2);
 }
 
 export function getWorkoutExerciseImageUrls(workouts = []) {
@@ -33,8 +59,7 @@ export function getWorkoutExerciseImageUrls(workouts = []) {
   for (const workout of workouts) {
     const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
     for (const exercise of exercises) {
-      const imageUrl = String(exercise?.imageUrl || '').trim();
-      if (imageUrl) urls.add(imageUrl);
+      getExerciseImageFrames(exercise).forEach(url => urls.add(url));
     }
   }
 

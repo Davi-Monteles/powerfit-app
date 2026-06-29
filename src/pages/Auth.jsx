@@ -147,7 +147,10 @@ export default function Auth({ onLogin }) {
           <button className={"tab " + (tab === 'register' ? 'active' : '')} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
         </div>
 
-        {previewNotice && <div className="auth-demo-notice">{previewNotice}<br />Personal: marcio.demo@powerfit.local / demo123<br />Aluno: aluno.pro@powerfit.local / demo123</div>}
+        <div className="auth-demo-notice">
+          {previewNotice && <>{previewNotice}<br /></>}
+          Personal: trainer.demo@powerfit.test / demo123<br />Aluno: student.demo@powerfit.test / demo123
+        </div>
 
         {tab === 'login' && <PwaInstallHint />}
 

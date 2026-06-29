@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth, useTheme, useToast } from '../lib/app-context';
 import { LayoutDashboard, Users, Dumbbell, TrendingUp, LogOut, X, Zap, CalendarDays, Camera, Settings, Moon, Sun, History, Target, Crown, Lock, DownloadCloud } from 'lucide-react';
 import { isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
+import usePWAInstall from '../hooks/usePWAInstall';
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
@@ -12,6 +12,7 @@ export default function Sidebar({ open, onClose }) {
   const isStudent = user?.type === 'aluno';
   const isMaster = user?.type === 'master';
   const addToast = useToast();
+  const { canInstall, installApp, isInstalling } = usePWAInstall();
 
   const personalNavItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,26 +46,6 @@ export default function Sidebar({ open, onClose }) {
   const navItems = isMaster ? masterNavItems : isStudent ? studentNavItems : personalNavItems;
 
   const handleLogout = () => { logout(); navigate('/'); };
-
-  const [installPrompt, setInstallPrompt] = useState(null);
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setInstallPrompt(null);
-    }
-  };
 
   return (
     <>
@@ -108,13 +89,14 @@ export default function Sidebar({ open, onClose }) {
             </div>
           </div>
 
-          {installPrompt && (
+          {canInstall && (
             <button
               className="btn btn-primary"
-              onClick={handleInstallClick}
+              onClick={installApp}
+              disabled={isInstalling}
               style={{ width: '100%', justifyContent: 'center', gap: '8px', marginBottom: '8px', padding: '12px', background: 'var(--gradient-primary)' }}
             >
-              <DownloadCloud size={18} /> Instalar App
+              <DownloadCloud size={18} /> {isInstalling ? 'Abrindo...' : 'Instalar app'}
             </button>
           )}
 

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  getStudentBmiInfo,
   getStudentIntake,
   getStudentIntakeProfile,
   getStudentIntakeSummary,
+  getStudentParQStatus,
   getStudentRiskFlags,
   hasCompletedStudentIntake,
   saveStudentIntake,
@@ -60,6 +62,16 @@ assert.equal(summary.daysPerWeek, '4');
 assert.equal(summary.sessionDuration, '45 minutos');
 assert.equal(summary.trainingHistory, 'Treina ha 1 ano com pausas curtas.');
 assert.equal(summary.notes, 'Prefere treinar a noite.');
+assert.equal(summary.continuousMedication, false);
+assert.equal(summary.recentSurgery, false);
+assert.equal(summary.medicalRestriction, false);
+assert.equal(summary.chronicDisease, false);
+assert.equal(summary.familyCardiacHistory, false);
+assert.equal(summary.constantPain, false);
+assert.equal(summary.parqStatus, 'Aprovado');
+assert.equal(summary.parqNeedsMedicalAttention, false);
+assert.equal(summary.bmi, 'Nao informado');
+assert.equal(summary.measurementsSummary, 'Nao informado');
 assert.deepEqual(summary.attentionPoints, ['Sem pontos de atenção informados.']);
 
 const profile = getStudentIntakeProfile({ name: 'Marina Silva' }, saved);
@@ -100,8 +112,29 @@ assert.ok(riskFlags.includes('Dor, lesao ou restricao informada'));
 assert.ok(riskFlags.includes('Dor no peito durante esforco'));
 assert.ok(riskFlags.includes('Tontura ou desmaio relatado'));
 assert.ok(riskFlags.includes('Problema cardiaco ou pressao relatado'));
-assert.ok(riskFlags.includes('Cirurgia ou lesao recente'));
+assert.ok(riskFlags.includes('Cirurgia recente informada'));
 assert.ok(riskFlags.includes('Restricao medica informada'));
+
+const parqAttention = {
+  ...saved,
+  parqChestPainActivity: true,
+  weight: '82.5',
+  height: '178',
+  waist: '88',
+  hip: '101',
+};
+const parqSummary = getStudentIntakeSummary(parqAttention);
+const bmiInfo = getStudentBmiInfo(parqAttention);
+const parqStatus = getStudentParQStatus(parqAttention);
+
+assert.equal(parqStatus.status, 'Atenção');
+assert.equal(parqStatus.needsMedicalAttention, true);
+assert.equal(parqSummary.parqStatus, 'Atenção');
+assert.equal(parqSummary.parqNeedsMedicalAttention, true);
+assert.equal(bmiInfo.formatted, '26,0');
+assert.equal(bmiInfo.classification, 'Sobrepeso');
+assert.equal(parqSummary.measurementsSummary, 'Peso: 82.5 kg; Altura: 178 cm; Cintura: 88 cm; Quadril: 101 cm; IMC: 26,0 (Sobrepeso)');
+assert.ok(getStudentRiskFlags(parqAttention).some(flag => flag.startsWith('PAR-Q:')));
 
 assert.deepEqual(getStudentRiskFlags(null), []);
 

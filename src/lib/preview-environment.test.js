@@ -20,8 +20,8 @@ assert.equal(getPreviewDemoNotice('powerfit.com.br'), '');
 const emptyPreviewStorage = createMemoryStorage();
 const seedResult = ensurePreviewDemoSeed('powerfit-demo.vercel.app', emptyPreviewStorage);
 assert.equal(seedResult.seeded, true);
-assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_users'))[0].email, 'marcio.demo@powerfit.local');
-assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_students'))[0].email, 'aluno.pro@powerfit.local');
+assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_users'))[0].email, 'trainer.demo@powerfit.test');
+assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_students'))[0].email, 'student.demo@powerfit.test');
 assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_workouts'))[0].name, 'Treino A - Forca e Hipertrofia');
 assert.equal(JSON.parse(emptyPreviewStorage.getItem('powerfit_users'))[0].password, 'demo123');
 

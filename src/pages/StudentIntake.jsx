@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle, ClipboardList, Save, ShieldAlert } from 'lucide-react';
 import { useAuth, useToast } from '../lib/app-context';
 import {
+  PAR_Q_FIELDS,
+  getStudentBmiInfo,
   getStudentIntake,
   getStudentIntakeSummary,
+  getStudentParQStatus,
   getStudentRiskFlags,
   saveStudentIntake,
 } from '../lib/student-intake';
@@ -18,11 +21,25 @@ const DEFAULT_FORM = {
   muscleFocus: [],
   trainingHistory: '',
   limitations: '',
-  chestPainDuringEffort: false,
-  dizzinessOrFainting: false,
-  heartOrBloodPressureIssue: false,
-  recentSurgeryOrInjury: false,
+  continuousMedication: false,
+  recentSurgery: false,
   medicalRestriction: false,
+  chronicDisease: false,
+  familyCardiacHistory: false,
+  constantPain: false,
+  constantPainLocation: '',
+  sleepHours: '',
+  parqHeartCondition: false,
+  parqChestPainActivity: false,
+  parqChestPainRest: false,
+  parqDizziness: false,
+  parqBoneJointProblem: false,
+  parqBloodPressureMedication: false,
+  parqOtherReason: false,
+  weight: '',
+  height: '',
+  waist: '',
+  hip: '',
   notes: '',
 };
 
@@ -36,12 +53,12 @@ const SELECT_FIELDS = [
 const EQUIPMENT_OPTIONS = ['Peso livre', 'Halteres', 'Barra', 'Maquinas', 'Elasticos', 'Casa sem equipamento'];
 const MUSCLE_OPTIONS = ['Peito', 'Costas', 'Pernas', 'Gluteos', 'Ombros', 'Bracos', 'Core', 'Condicionamento'];
 
-const SAFETY_FIELDS = [
-  ['chestPainDuringEffort', 'Dor no peito durante esforço'],
-  ['dizzinessOrFainting', 'Tontura ou desmaio'],
-  ['heartOrBloodPressureIssue', 'Problema cardíaco ou pressão'],
-  ['recentSurgeryOrInjury', 'Cirurgia ou lesão recente'],
+const HEALTH_FIELDS = [
+  ['continuousMedication', 'Medicação contínua'],
+  ['recentSurgery', 'Cirurgia recente'],
   ['medicalRestriction', 'Restrição médica'],
+  ['chronicDisease', 'Doença crônica'],
+  ['familyCardiacHistory', 'Histórico familiar cardíaco'],
 ];
 
 function getActiveStudentId(user) {
@@ -174,6 +191,9 @@ function IntakeSummary({ intake }) {
       {riskFlags.length > 0 && <RiskNotice />}
       <div className="intake-summary-grid">
         <SummaryItem label="Objetivo" value={summary.goal} />
+        <SummaryItem label="Saúde" value={summary.healthSummary} />
+        <SummaryItem label="PAR-Q" value={summary.parqStatus} />
+        <SummaryItem label="Medidas + IMC" value={summary.measurementsSummary} />
         <SummaryItem label="Disponibilidade" value={summary.availability} />
         <SummaryItem label="Nível" value={summary.experienceLevel} />
         <SummaryItem label="Equipamentos" value={summary.equipment} />
@@ -198,7 +218,9 @@ function IntakeForm({ error, form, hasSavedIntake, onCancel, onSubmit, onToggleL
       <ChoiceGroup label="Foco muscular *" options={MUSCLE_OPTIONS} selected={form.muscleFocus} onToggle={value => onToggleListValue('muscleFocus', value)} />
       <TextareaField label="Histórico de treino *" value={form.trainingHistory} onChange={value => onUpdateField('trainingHistory', value)} placeholder="Ex: treinei por 1 ano, parei por 3 meses, faço caminhada..." required />
       <TextareaField label="Lesões, dor ou restrições" value={form.limitations} onChange={value => onUpdateField('limitations', value)} placeholder="Informe dores, lesões, restrições ou deixe em branco se não houver." />
-      <SafetySection form={form} onUpdateField={onUpdateField} />
+      <HealthSection form={form} onUpdateField={onUpdateField} />
+      <ParQSection form={form} onUpdateField={onUpdateField} />
+      <MeasurementsSection form={form} onUpdateField={onUpdateField} />
       {getStudentRiskFlags(form).length > 0 && <RiskNotice spaced />}
       <TextareaField label="Observações livres" value={form.notes} onChange={value => onUpdateField('notes', value)} placeholder="Preferências, horários, exercícios que gosta ou evita..." />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap', marginTop: '22px' }}>
@@ -254,28 +276,91 @@ function ChoiceButton({ active, label, onClick }) {
   return <button type="button" className={`btn intake-choice ${active ? 'btn-primary' : 'btn-outline'}`} onClick={onClick}>{label}</button>;
 }
 
-function SafetySection({ form, onUpdateField }) {
+function HealthSection({ form, onUpdateField }) {
   return (
     <>
       <div style={{ margin: '22px 0 12px' }}>
         <h3 style={{ fontSize: '1rem', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ShieldAlert size={18} style={{ color: 'var(--warning)' }} /> Perguntas básicas de segurança
+          <ShieldAlert size={18} style={{ color: 'var(--warning)' }} /> Saúde
         </h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>Marque qualquer item que se aplique. Em caso de dúvida, revise com um profissional antes de treinar.</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>Responda de forma simples para sinalizar pontos de atenção antes do treino.</p>
       </div>
-      <div className="intake-check-grid">
-        {SAFETY_FIELDS.map(([field, label]) => <SafetyCheck key={field} label={label} checked={form[field]} onChange={value => onUpdateField(field, value)} />)}
+      <div className="intake-boolean-grid">
+        {HEALTH_FIELDS.map(([field, label]) => <BooleanField key={field} label={label} value={form[field]} onChange={value => onUpdateField(field, value)} />)}
+      </div>
+      <BooleanField label="Dor constante" value={form.constantPain} onChange={value => onUpdateField('constantPain', value)} />
+      {form.constantPain && (
+        <TextField label="Onde sente dor?" value={form.constantPainLocation} onChange={value => onUpdateField('constantPainLocation', value)} placeholder="Ex: joelho direito, lombar, ombro..." />
+      )}
+      <TextField label="Horas de sono por noite" type="number" value={form.sleepHours} onChange={value => onUpdateField('sleepHours', value)} placeholder="Ex: 7" min="0" max="24" step="0.5" />
+    </>
+  );
+}
+
+function ParQSection({ form, onUpdateField }) {
+  const parqStatus = getStudentParQStatus(form);
+
+  return (
+    <>
+      <div style={{ margin: '22px 0 12px' }}>
+        <h3 style={{ fontSize: '1rem', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ShieldAlert size={18} style={{ color: 'var(--warning)' }} /> PAR-Q
+        </h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>7 perguntas padrão de prontidão para atividade física.</p>
+      </div>
+      <div className="intake-parq-list">
+        {PAR_Q_FIELDS.map(field => <BooleanField key={field.key} label={field.label} value={form[field.key]} onChange={value => onUpdateField(field.key, value)} />)}
+      </div>
+      {parqStatus.needsMedicalAttention && (
+        <div style={{ background: 'rgba(245,158,11,0.09)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 'var(--radius-md)', padding: '12px', margin: '12px 0 18px', color: 'var(--warning)', fontSize: '0.88rem', fontWeight: 700 }}>
+          Atenção médica: como houve resposta "sim" no PAR-Q, procure liberação profissional antes de iniciar ou intensificar treinos.
+        </div>
+      )}
+    </>
+  );
+}
+
+function MeasurementsSection({ form, onUpdateField }) {
+  const bmi = getStudentBmiInfo(form);
+
+  return (
+    <>
+      <div style={{ margin: '22px 0 12px' }}>
+        <h3 style={{ fontSize: '1rem', marginBottom: '6px' }}>Medidas básicas</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>Medidas opcionais para acompanhar evolução simples na V1.</p>
+      </div>
+      <div className="intake-form-grid">
+        <TextField label="Peso (kg)" type="number" value={form.weight} onChange={value => onUpdateField('weight', value)} placeholder="Ex: 82.5" min="0" step="0.1" />
+        <TextField label="Altura (cm)" type="number" value={form.height} onChange={value => onUpdateField('height', value)} placeholder="Ex: 178" min="0" step="1" />
+        <TextField label="Cintura (cm)" type="number" value={form.waist} onChange={value => onUpdateField('waist', value)} placeholder="Ex: 88" min="0" step="0.1" />
+        <TextField label="Quadril (cm)" type="number" value={form.hip} onChange={value => onUpdateField('hip', value)} placeholder="Ex: 101" min="0" step="0.1" />
+      </div>
+      <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', marginBottom: '18px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>IMC automático</p>
+        <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{bmi.label}</strong>
       </div>
     </>
   );
 }
 
-function SafetyCheck({ label, checked, onChange }) {
+function BooleanField({ label, value, onChange }) {
   return (
-    <label className="intake-check">
-      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
+    <div className="intake-boolean-field">
       <span>{label}</span>
-    </label>
+      <div className="intake-boolean-actions" role="group" aria-label={label}>
+        <button type="button" className={!value ? 'active' : ''} onClick={() => onChange(false)}>Não</button>
+        <button type="button" className={value ? 'active' : ''} onClick={() => onChange(true)}>Sim</button>
+      </div>
+    </div>
+  );
+}
+
+function TextField({ label, value, onChange, placeholder, type = 'text', min, max, step }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <input className="form-input" type={type} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} min={min} max={max} step={step} />
+    </div>
   );
 }
 
@@ -300,14 +385,22 @@ function IntakeStyles() {
   return (
     <style>{`
       .intake-form-grid, .intake-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-      .intake-choice-grid, .intake-check-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+      .intake-choice-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
       .intake-choice { white-space: normal; text-align: left; min-height: 40px; }
-      .intake-check { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 0.86rem; cursor: pointer; }
-      .intake-check input { accent-color: var(--primary); }
+      .intake-boolean-grid, .intake-parq-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 18px; }
+      .intake-parq-list { grid-template-columns: 1fr; }
+      .intake-boolean-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 0.86rem; }
+      .intake-boolean-field > span { line-height: 1.35; }
+      .intake-boolean-actions { display: inline-flex; gap: 6px; }
+      .intake-boolean-actions button { border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; background: rgba(255,255,255,0.03); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+      .intake-boolean-actions button.active { border-color: rgba(255,107,53,0.45); background: var(--gradient-primary); color: white; }
       @media (max-width: 480px) {
         .intake-form-grid, .intake-summary-grid { grid-template-columns: 1fr; }
-        .intake-choice-grid, .intake-check-grid { flex-direction: column; }
-        .intake-choice, .intake-check { width: 100%; justify-content: flex-start; }
+        .intake-choice-grid { flex-direction: column; }
+        .intake-choice { width: 100%; justify-content: flex-start; }
+        .intake-boolean-grid { grid-template-columns: 1fr; }
+        .intake-boolean-field { grid-template-columns: 1fr; align-items: stretch; }
+        .intake-boolean-actions button { flex: 1; }
       }
     `}</style>
   );

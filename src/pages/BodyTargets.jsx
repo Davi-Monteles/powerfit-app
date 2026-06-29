@@ -30,6 +30,11 @@ const muscleGroupsBack = [
   { id: 'calves', name: 'Panturrilhas' }
 ];
 
+const atlasAccent = '#FF6B35';
+const atlasAccentMuted = 'rgba(255, 107, 53, 0.18)';
+const atlasAccentText = '#FFB08A';
+const atlasBodyColor = '#64748B';
+
 const nativeMuscleIds = new Set([
   'trapezius',
   'upper-back',
@@ -174,80 +179,283 @@ export default function BodyTargets() {
   };
 
   return (
-    <div className='page-container' style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className='page-container body-targets-page' style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <style>{`
+        .body-targets-page {
+          padding: clamp(12px, 3vw, 24px) !important;
+        }
+
+        .body-targets-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+
+        .body-targets-layout {
+          display: flex;
+          gap: 24px;
+          flex-wrap: wrap;
+          align-items: flex-start;
+        }
+
+        .body-targets-page button {
+          touch-action: manipulation;
+        }
+
+        .body-targets-page button:focus-visible {
+          outline: 3px solid rgba(255, 176, 138, 0.86);
+          outline-offset: 3px;
+        }
+
+        .body-targets-model-card {
+          flex: 1 1 500px;
+          padding: 0;
+          overflow: hidden;
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: clamp(640px, 72vw, 850px);
+          border: 1px solid rgba(148, 163, 184, 0.18);
+          background:
+            radial-gradient(circle at 50% 12%, rgba(255, 107, 53, 0.18), transparent 28%),
+            radial-gradient(circle at 50% 50%, rgba(30, 58, 95, 0.45), transparent 46%),
+            linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(11, 17, 32, 0.98));
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .body-targets-model-card::before {
+          content: '';
+          position: absolute;
+          inset: 18px;
+          border-radius: 28px;
+          border: 1px solid rgba(148, 163, 184, 0.09);
+          background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0));
+          pointer-events: none;
+        }
+
+        .body-targets-view-badge,
+        .body-targets-count,
+        .body-targets-flip {
+          position: absolute;
+          z-index: 20;
+        }
+
+        .body-targets-view-badge { top: 16px; left: 16px; }
+        .body-targets-count { top: 16px; right: 16px; }
+        .body-targets-flip { bottom: 32px; left: 50%; transform: translateX(-50%); }
+
+        .body-targets-view-badge .badge {
+          padding: 8px 16px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: linear-gradient(135deg, rgba(255, 107, 53, 0.98), rgba(229, 90, 37, 0.92));
+          color: #fff;
+          font-size: 0.85rem;
+          font-weight: 800;
+          box-shadow: 0 12px 26px rgba(255, 107, 53, 0.22);
+        }
+
+        .body-targets-count {
+          padding: 7px 14px;
+          border: 1px solid rgba(255, 107, 53, 0.24);
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.76);
+          backdrop-filter: blur(12px);
+        }
+
+        .body-targets-count p {
+          margin: 0;
+          color: #FFB08A;
+          font-size: 0.88rem;
+          font-weight: 800;
+        }
+
+        .body-targets-flip-button {
+          font-size: 1rem;
+          color: white;
+          border: none;
+          padding: 14px 32px;
+          border-radius: 999px;
+          box-shadow: 0 16px 34px rgba(255, 107, 53, 0.28);
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .body-targets-model-shell {
+          position: relative;
+          width: 100%;
+          height: clamp(560px, 62vw, 750px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: clamp(64px, 8vw, 80px) clamp(16px, 5vw, 48px) clamp(96px, 10vw, 120px);
+        }
+
+        .body-targets-model-shell::before {
+          content: '';
+          position: absolute;
+          width: min(70%, 320px);
+          height: 82%;
+          border-radius: 999px;
+          background: radial-gradient(ellipse, rgba(255, 107, 53, 0.13), transparent 68%);
+          filter: blur(8px);
+          pointer-events: none;
+        }
+
+        .body-targets-model-shell .rbh-wrapper {
+          max-width: min(100%, 420px);
+          filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 18px rgba(255, 107, 53, 0.16));
+        }
+
+        .body-targets-model-shell .rbh {
+          overflow: visible;
+        }
+
+        .body-targets-model-shell .rbh polygon {
+          stroke: rgba(241, 245, 249, 0.12);
+          stroke-width: 0.18;
+          transition: fill 160ms ease, opacity 160ms ease, stroke 160ms ease;
+          vector-effect: non-scaling-stroke;
+        }
+
+        .body-targets-model-shell .rbh polygon:hover {
+          fill: #FF8C5A !important;
+          stroke: rgba(255, 255, 255, 0.34);
+        }
+
+        .body-targets-panel {
+          flex: 1 1 350px;
+          display: flex;
+          flex-direction: column;
+          min-height: clamp(560px, 72vw, 850px);
+        }
+
+        .body-targets-group-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        @media (max-width: 768px) {
+          .body-targets-header {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .body-targets-save {
+            width: 100%;
+          }
+
+          .body-targets-layout {
+            gap: 16px;
+          }
+
+          .body-targets-model-card,
+          .body-targets-panel {
+            flex-basis: 100%;
+          }
+
+          .body-targets-panel {
+            min-height: auto;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .body-targets-page h2 {
+            font-size: 1.25rem;
+          }
+
+          .body-targets-model-card {
+            min-height: 590px;
+            border-radius: 22px;
+          }
+
+          .body-targets-model-card::before {
+            inset: 10px;
+            border-radius: 18px;
+          }
+
+          .body-targets-view-badge { top: 12px; left: 12px; }
+          .body-targets-count { top: 12px; right: 12px; padding: 6px 10px; }
+
+          .body-targets-view-badge .badge,
+          .body-targets-count p {
+            font-size: 0.72rem;
+          }
+
+          .body-targets-model-shell {
+            height: 530px;
+            padding: 68px 8px 96px;
+          }
+
+          .body-targets-model-shell .rbh-wrapper {
+            max-width: 285px;
+          }
+
+          .body-targets-flip {
+            bottom: 22px;
+            width: calc(100% - 32px);
+          }
+
+          .body-targets-flip-button {
+            width: 100%;
+            justify-content: center;
+            padding: 12px 16px;
+            font-size: 0.9rem;
+          }
+
+          .body-targets-group-grid {
+            gap: 10px;
+          }
+        }
+      `}</style>
       
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className='body-targets-header'>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={() => navigate(-1)} className='btn btn-secondary' style={{ padding: '8px' }}>
+          <button onClick={() => navigate(-1)} className='btn btn-secondary' style={{ padding: '8px' }} aria-label='Voltar'>
             <ArrowLeft size={20} />
           </button>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
             <span role='img' aria-label='dna'>🧬</span> Atlas Anatômico 3D PRO
           </h2>
         </div>
-        <button onClick={handleSave} className='btn btn-primary' style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button onClick={handleSave} className='btn btn-primary body-targets-save' style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Save size={18} /> Salvar
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div className='body-targets-layout'>
         
-        <div className='card' style={{ 
-          flex: '1 1 500px', 
-          padding: 0, 
-          overflow: 'hidden', 
-          position: 'relative', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          background: 'var(--bg-card)', 
-          minHeight: '850px', // Aumentado para mostrar o corpo todo
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          border: '1px solid var(--border)'
-        }}>
+        <div className='card body-targets-model-card'>
           
-          <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 20 }}>
-            <div className='badge badge-primary' style={{ fontSize: '0.85rem', padding: '8px 16px', background: 'rgba(255,107,53,1)', border: 'none', color: 'white', fontWeight: 'bold' }}>
+          <div className='body-targets-view-badge'>
+            <div className='badge badge-primary'>
               🧍 {isFlipped ? 'VISÃO POSTERIOR' : 'VISÃO ANTERIOR'}
             </div>
           </div>
 
-          <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 20, background: 'rgba(0,0,0,0.7)', padding: '6px 14px', borderRadius: '12px' }}>
-             <p style={{ margin: 0, fontSize: '0.9rem', color: '#10DB68', fontWeight: 'bold' }}>{selectedGroups.length} selecionados</p>
+          <div className='body-targets-count'>
+             <p>{selectedGroups.length} selecionados</p>
           </div>
 
-          <div style={{ position: 'absolute', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 20 }}>
-             <button onClick={switchView} className='btn btn-primary' style={{ 
-               fontSize: '1rem', 
-               background: 'var(--primary)', 
-               color: 'white',
-               border: 'none', 
-               padding: '14px 32px', 
-               borderRadius: '50px',
-               boxShadow: '0 10px 20px rgba(255,107,53,0.3)',
-               fontWeight: 'bold',
-               display: 'flex',
-               alignItems: 'center',
-               gap: '10px',
-               transition: 'all 0.3s'
-             }}>
+          <div className='body-targets-flip'>
+             <button onClick={switchView} className='btn btn-primary body-targets-flip-button'>
                <RefreshCw size={20} /> 
                Girar Boneco (360º)
-             </button>
+              </button>
           </div>
 
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '750px', // Altura fixa para garantir que o SVG não seja cortado
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
+          <div className='body-targets-model-shell'>
             <Model
               data={data}
               style={{ height: '100%', width: '100%' }}
-              highlightedColors={['#10DB68']}
+              svgStyle={{ overflow: 'visible' }}
+              bodyColor={atlasBodyColor}
+              highlightedColors={[atlasAccent]}
               onClick={handleModelClick}
               type={isFlipped ? "posterior" : "anterior"}
             />
@@ -255,12 +463,12 @@ export default function BodyTargets() {
         </div>
 
         {/* Panel Grupos */}
-        <div className='card' style={{ flex: '1 1 350px', display: 'flex', flexDirection: 'column', minHeight: '850px' }}>
+        <div className='card body-targets-panel'>
           <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary)' }}>
             <span role='img' aria-label='bullet'>🚀</span> Seleção por Grupos
           </h3>
           
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          <div className='body-targets-group-grid'>
             {currentGroups.map(mg => {
               const selected = isSelected(mg.id);
               return (
@@ -268,14 +476,15 @@ export default function BodyTargets() {
                   key={mg.id}
                   onClick={() => toggleGroup(mg.id)}
                   style={{
-                    background: selected ? 'rgba(16, 219, 104, 0.2)' : 'rgba(255,255,255,0.03)',
-                    border: `2px solid ${selected ? '#10DB68' : 'var(--border)'}`,
-                    color: selected ? '#10DB68' : 'var(--text-secondary)',
+                    background: selected ? atlasAccentMuted : 'rgba(255,255,255,0.03)',
+                    border: `2px solid ${selected ? atlasAccent : 'var(--border)'}`,
+                    color: selected ? atlasAccentText : 'var(--text-secondary)',
                     padding: '12px 18px',
                     borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', 
+                    transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     fontWeight: selected ? '700' : '500',
-                    fontSize: '0.95rem'
+                    fontSize: '0.95rem',
+                    boxShadow: selected ? '0 0 20px rgba(255, 107, 53, 0.16)' : 'none'
                   }}
                 >
                   {selected && <Check size={18} />} {mg.name}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'powerfit-pwa-v4';
+const CACHE_NAME = 'powerfit-pwa-v5';
 const EXERCISE_MEDIA_CACHE = 'powerfit-exercise-media-v1';
 const EXERCISE_MEDIA_LIMIT = 60;
 const exerciseImageUrls = new Set();
@@ -7,7 +7,19 @@ const ASSETS_TO_CACHE = [
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
-  '/pwa-icon.svg'
+  '/pwa-icon.svg',
+  '/powerfit/landing/hero-trainer.jpg',
+  '/powerfit/landing/panel-boxjump.jpg',
+  '/powerfit/landing/panel-coaching.jpg',
+  '/powerfit/landing/panel-deadlift-1.jpg',
+  '/powerfit/landing/panel-deadlift-2.jpg',
+  '/powerfit/landing/panel-grip.jpg',
+  '/powerfit/landing/panel-kettlebell.jpg',
+  '/powerfit/landing/panel-press.jpg',
+  '/powerfit/landing/panel-pullup.jpg',
+  '/powerfit/landing/panel-review.jpg',
+  '/powerfit/landing/panel-ropes.jpg',
+  '/powerfit/landing/panel-sprint.jpg'
 ];
 
 function normalizeExerciseImageUrl(value) {
@@ -22,7 +34,8 @@ function normalizeExerciseImageUrl(value) {
 
 function getExerciseImageUrls(values) {
   if (!Array.isArray(values)) return [];
-  return [...new Set(values.map(normalizeExerciseImageUrl).filter(Boolean))];
+  const flattenedValues = values.flatMap(value => (Array.isArray(value) ? value : [value]));
+  return [...new Set(flattenedValues.map(normalizeExerciseImageUrl).filter(Boolean))];
 }
 
 function createExerciseImageRequest(url) {

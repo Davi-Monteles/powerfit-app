@@ -5,6 +5,7 @@ import { stripSensitiveSessionFields } from '../lib/security';
 import { useToast, useTheme, useAuth } from '../lib/app-context';
 import { Settings as GearIcon, Download, Upload, Moon, Sun, Database, Shield, CreditCard, User } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PwaInstallHint from '../components/PwaInstallHint';
 
 export default function Settings() {
   const { user, login: setUser } = useAuth();
@@ -140,6 +141,7 @@ export default function Settings() {
       </div>
 
       <div style={{ display: 'grid', gap: '20px', maxWidth: '600px' }}>
+        {!isStudent && <PwaInstallHint />}
         
         {/* Profile (Only for Students) */}
         {isStudent && (

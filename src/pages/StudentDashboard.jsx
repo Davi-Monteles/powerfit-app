@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/app-context';
 import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule, activateStudentProDemo } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
-import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, DownloadCloud, ClipboardList, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, ClipboardList, ShieldAlert } from 'lucide-react';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import PremiumLobby from './PremiumLobby';
 import AIAssistantNotice from '../components/AIAssistantNotice';
 import AIChat from '../components/AIChat';
-import usePWAInstall from '../hooks/usePWAInstall';
+import PwaInstallHint from '../components/PwaInstallHint';
 import { getStudentIntake, getStudentIntakeSummary, getStudentRiskFlags, hasCompletedStudentIntake } from '../lib/student-intake';
 import StudentIntake from './StudentIntake';
 import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
@@ -41,7 +41,6 @@ export default function StudentDashboard() {
   const workoutsInitRef = useRef(false);
   const paymentProcessedRef = useRef(false);
   const { revision } = useStorageSync('notifications');
-  const { canInstall, installApp, isInstalling } = usePWAInstall();
   const activeStudentId = student?.id || student?.studentId || student?.student_id;
   const studentPersonalId = student?.personalId;
   const studentEmail = student?.email;
@@ -268,19 +267,8 @@ export default function StudentDashboard() {
           Olá, {student.name ? student.name.split(" ")[0] : "Atleta"}! 👋
           {hasPremiumAccess && <span className="badge badge-primary" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>⭐ PRO</span>}
         </h2>
-        {canInstall && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={installApp}
-            disabled={isInstalling}
-            style={{ borderRadius: '8px', minHeight: '40px' }}
-          >
-            <DownloadCloud size={18} />
-            {isInstalling ? 'Instalando...' : 'Instalar Aplicativo'}
-          </button>
-        )}
       </div>
+      <PwaInstallHint />
 
       {notifications.length > 0 && (
         <div className="card" style={{ marginBottom: "24px", background: "rgba(6, 182, 212, 0.1)", border: "1px solid rgba(6, 182, 212, 0.4)" }}>
