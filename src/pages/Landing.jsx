@@ -298,6 +298,7 @@ export default function Landing() {
             <a href="#recursos" onClick={event => { handleSectionLinkClick(event, '#recursos'); handleCloseMenu(); }}>Recursos</a>
             <a href="#personal" onClick={event => { handleSectionLinkClick(event, '#personal'); handleCloseMenu(); }}>Para Personal</a>
             <a href="#alunos" onClick={event => { handleSectionLinkClick(event, '#alunos'); handleCloseMenu(); }}>Para Aluno</a>
+            <Link to="/personal/marcio" onClick={handleCloseMenu}>Conhecer personal</Link>
             <Link to="/auth" onClick={handleCloseMenu}>Entrar</Link>
             <Link to="/auth?type=personal" className="pf-button primary" onClick={handleCloseMenu}>Comecar agora</Link>
           </div>
@@ -321,6 +322,9 @@ export default function Landing() {
               <a href="#recursos" className="pf-button outline large" onClick={event => handleSectionLinkClick(event, '#recursos')}>
                 <Play size={15} fill="currentColor" /> Ver como funciona
               </a>
+              <Link to="/personal/marcio" className="pf-button outline large">
+                Conhecer personal
+              </Link>
             </div>
             <PwaInstallHint />
             <div className="pf-status-row" aria-label="Status do produto">
@@ -1615,11 +1619,25 @@ export default function Landing() {
 
           .pf-mockup-wrap {
             min-height: 0;
+            min-width: 0;
+            max-width: 100%;
+          }
+
+          .pf-experience-row,
+          .pf-experience-copy {
+            min-width: 0;
+            max-width: 100%;
           }
 
           .pf-phone-mockup {
             width: 100%;
             max-width: 330px;
+            box-sizing: border-box;
+          }
+
+          .pf-dashboard-mockup {
+            width: 100%;
+            max-width: 100%;
           }
 
           .pf-dashboard-body {
@@ -1636,7 +1654,8 @@ export default function Landing() {
           }
 
           .pf-student-preview {
-            grid-template-columns: 28px 1fr auto;
+            grid-template-columns: 28px minmax(0, 1fr) auto;
+            gap: 8px;
           }
 
           .pf-student-preview small,

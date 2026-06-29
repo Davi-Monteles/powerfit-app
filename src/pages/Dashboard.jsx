@@ -78,6 +78,7 @@ export default function Dashboard() {
     { label: 'Evolução', icon: TrendingUp, color: 'green', path: '/evolution' },
     { label: 'Agenda', icon: CalendarDays, color: 'cyan', path: '/schedule' },
     { label: 'Fotos', icon: Camera, color: 'orange', path: '/photos' },
+    { label: 'Compartilhar minha página', icon: MessageCircle, color: 'orange', path: '/personal/marcio' },
     { label: 'Configurações', icon: Settings, color: 'blue', path: '/settings' },
   ];
 

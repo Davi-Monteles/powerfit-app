@@ -16,6 +16,10 @@ function cssRule(source, selector) {
 
 const mobileHeroImageRule = cssRule(mobileSource, '.pf-hero-image');
 const mobileHeroImageImgRule = cssRule(mobileSource, '.pf-hero-image img');
+const mobileMockupWrapRule = cssRule(mobileSource, '.pf-mockup-wrap');
+const mobilePhoneMockupRule = cssRule(mobileSource, '.pf-phone-mockup');
+const mobileDashboardMockupRule = cssRule(mobileSource, '.pf-dashboard-mockup');
+const mobileStudentPreviewRule = cssRule(mobileSource, '.pf-student-preview');
 
 assert.match(
   landingSource,
@@ -63,6 +67,30 @@ assert.match(
   landingSource,
   /@media \(max-width: 620px\)[\s\S]*\.pf-status-row span\s*\{[\s\S]*line-height:\s*1\.35;/,
   'mobile status chips must keep wrapped lines readable',
+);
+
+assert.match(
+  mobileMockupWrapRule,
+  /max-width:\s*100%;/,
+  'mobile mockup wrapper must stay within viewport width',
+);
+
+assert.match(
+  mobilePhoneMockupRule,
+  /box-sizing:\s*border-box;/,
+  'mobile phone mockup border must be included in its width',
+);
+
+assert.match(
+  mobileDashboardMockupRule,
+  /max-width:\s*100%;/,
+  'mobile dashboard mockup must not exceed wrapper width',
+);
+
+assert.match(
+  mobileStudentPreviewRule,
+  /minmax\(0,\s*1fr\)/,
+  'mobile student preview names must shrink instead of forcing overflow',
 );
 
 assert.match(

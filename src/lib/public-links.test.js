@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const landingSource = readFileSync(resolve(__dirname, '../pages/Landing.jsx'), 'utf8');
 const publicInfoSource = readFileSync(resolve(__dirname, '../pages/PublicInfoPages.jsx'), 'utf8');
 const appSource = readFileSync(resolve(__dirname, '../App.jsx'), 'utf8');
+const dashboardSource = readFileSync(resolve(__dirname, '../pages/Dashboard.jsx'), 'utf8');
 
 const expectedFooterContracts = [
   "{ label: 'Produto', href: '#produto' }",
@@ -34,6 +35,16 @@ for (const id of ['produto', 'recursos', 'personal', 'alunos']) {
 assert.ok(
   landingSource.includes('function handleSectionLinkClick') && landingSource.includes('scrollIntoView'),
   'Landing hash links must use explicit scroll handling',
+);
+
+assert.ok(
+  landingSource.includes('to="/personal/marcio"') && landingSource.includes('Conhecer personal'),
+  'Landing must expose a visible link to /personal/marcio',
+);
+
+assert.ok(
+  dashboardSource.includes("path: '/personal/marcio'") && dashboardSource.includes('Compartilhar minha página'),
+  'Dashboard quick actions must expose the public personal page',
 );
 
 for (const route of ['/sobre', '/atualizacoes', '/termos', '/privacidade', '/seguranca']) {
