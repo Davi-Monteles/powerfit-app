@@ -43,11 +43,10 @@ const loadStorage = new AsyncFunction(
   'sanitizeExportData',
   'sanitizeImportData',
   'stripSensitiveSessionFields',
-  `${storageSource}\nreturn { activateStudentProDemo, isStudentPremium, resolveStudentProfileFromCache };`
+  `${storageSource}\nreturn { isStudentPremium, resolveStudentProfileFromCache };`
 );
 
 const {
-  activateStudentProDemo,
   isStudentPremium,
   resolveStudentProfileFromCache,
 } = await loadStorage(
@@ -89,15 +88,14 @@ localStorage.setItem('powerfit_students', JSON.stringify([
   },
 ]));
 
-const upgraded = activateStudentProDemo(studentUser);
 const persistedCurrentUser = JSON.parse(localStorage.getItem('powerfit_current_user'));
 const persistedUsers = JSON.parse(localStorage.getItem('powerfit_users'));
 const persistedStudents = JSON.parse(localStorage.getItem('powerfit_students'));
 const reloadedStudent = resolveStudentProfileFromCache(persistedCurrentUser);
 
-assert.equal(upgraded.isPremium, true);
-assert.equal(persistedCurrentUser.isPremium, true);
+assert.equal(persistedCurrentUser.isPremium, undefined);
 assert.equal(persistedCurrentUser.type, 'aluno');
-assert.equal(persistedUsers.find(user => user.email === studentUser.email).isPremium, true);
-assert.equal(persistedStudents.find(student => student.email === studentUser.email).isPremium, true);
-assert.equal(isStudentPremium(reloadedStudent), true);
+assert.equal(persistedUsers.find(user => user.email === studentUser.email).isPremium, undefined);
+assert.equal(persistedStudents.find(student => student.email === studentUser.email).isPremium, false);
+assert.equal(isStudentPremium(reloadedStudent), false);
+assert.doesNotMatch(storageSource, /activateStudentProDemo|function activatePremium/);

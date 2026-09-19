@@ -1,16 +1,55 @@
-# React + Vite
+# PowerFit
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicação web para personal trainers e alunos, com gestão de alunos, treinos, agenda, evolução física e assistente de IA.
 
-Currently, two official plugins are available:
+## Desenvolvimento
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Requisitos: Node.js 20.19+ (ou 22.12+) e um projeto Supabase.
 
-## React Compiler
+```bash
+npm install
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Copie `.env.example` para `.env.local` e informe as credenciais públicas do Supabase. `GROQ_API_KEY` é segredo do servidor e deve ser configurado apenas no ambiente de deploy.
 
-## Expanding the ESLint configuration
+O modo de demonstração é opcional e só deve ser habilitado em preview ou desenvolvimento:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```env
+VITE_ENABLE_DEMO_MODE=true
+```
+
+Nunca habilite essa variável no domínio de produção.
+
+## Banco e autenticação
+
+Antes do primeiro deploy desta versão, execute `supabase_auth_rls_migration.sql` no SQL Editor do Supabase. A migração:
+
+- vincula perfis ao Supabase Auth;
+- remove senhas em texto puro das tabelas de perfil;
+- ativa RLS com acesso por usuário e por personal responsável;
+- cria o fluxo de perfil após cadastro;
+- preserva os dados existentes sempre que houver e-mail correspondente.
+
+Depois da migração, usuários antigos que ainda não tenham uma conta no Supabase Auth devem cadastrar a mesma conta de e-mail ou usar “Esqueci minha senha”.
+
+## Verificação de entrega
+
+```bash
+npm run check
+npm audit
+```
+
+O pagamento automático está desabilitado de forma segura nesta versão. Os planos são apresentados como piloto e a ativação deve ser feita pelo responsável até existir uma integração de pagamento validada no servidor.
+
+## Deploy
+
+Configure no provedor:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `GROQ_API_KEY` (somente servidor)
+
+Revise também no Supabase Auth a URL pública e as URLs permitidas de redirecionamento, incluindo `/reset-password`.

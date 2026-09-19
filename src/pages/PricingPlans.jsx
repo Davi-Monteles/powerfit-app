@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useToast } from '../lib/app-context';
 import { getPlans, setUserPlan, getUserPlan, isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
@@ -36,10 +36,11 @@ export default function PricingPlans() {
     }, 1200);
   };
 
-  if (isVip) {
-    setTimeout(() => navigate('/dashboard'), 100);
-    return null;
-  }
+  useEffect(() => {
+    if (isVip) navigate('/dashboard', { replace: true });
+  }, [isVip, navigate]);
+
+  if (isVip) return null;
 
   return (
     <div className="pricing-page">
@@ -105,7 +106,7 @@ export default function PricingPlans() {
                 </div>
 
                 {activeType === 'aluno' && plan.id === 'student-pro' && (
-                  <p className="plan-info plan-demo-note">Modo demo do aluno: Pagamento real ainda não conectado.</p>
+                  <p className="plan-info plan-demo-note">Plano PRO ainda indisponível neste piloto.</p>
                 )}
 
                 {plan.studentLimit !== undefined && (
@@ -136,7 +137,7 @@ export default function PricingPlans() {
                   ) : isCurrent ? (
                     'Plano Ativo'
                   ) : activeType === 'aluno' ? (
-                    <>Ativar Demo {plan.name} <ArrowRight size={16} /></>
+                    <>Selecionar {plan.name} <ArrowRight size={16} /></>
                   ) : (
                     <>Selecionar {plan.name} <ArrowRight size={16} /></>
                   )}
@@ -148,7 +149,7 @@ export default function PricingPlans() {
 
         <div className="pricing-footer">
           <Shield size={16} />
-          <span>{activeType === 'aluno' ? 'Modo demo do aluno • Pagamento real ainda não conectado' : 'Ambiente de demonstração • Não use dados reais • Pagamento real será conectado em produção'}</span>
+          <span>{activeType === 'aluno' ? 'Plano PRO ainda indisponível neste piloto' : 'Planos do piloto • Nenhuma cobrança será realizada'}</span>
         </div>
       </div>
 

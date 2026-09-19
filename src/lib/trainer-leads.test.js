@@ -139,3 +139,28 @@ const savedLead = {
   await assert.rejects(() => saveTrainerLead({ name: 'Ana' }, trainerId), /network/);
   await assert.rejects(() => updateTrainerLeadStatus('lead-1', 'vendido', trainerId), /Status invalido/);
 }
+
+{
+  const originalLocalStorage = globalThis.localStorage;
+  const store = new Map([['powerfit_demo_mode', 'enabled']]);
+  globalThis.localStorage = {
+    getItem(key) { return store.get(key) || null; },
+    setItem(key, value) { store.set(key, String(value)); },
+  };
+
+  try {
+    const { calls, supabase } = createSupabaseMock([]);
+    const { getTrainerLeads, saveTrainerLead, updateTrainerLeadStatus } = await loadTrainerLeads(supabase);
+    const created = await saveTrainerLead({ name: '  Demo  ', objective: '  Condicionamento  ' }, trainerId);
+    assert.equal(created.name, 'Demo');
+    assert.equal(created.status, 'novo');
+    assert.equal((await getTrainerLeads(trainerId)).length, 1);
+
+    const updated = await updateTrainerLeadStatus(created.id, 'contatado', trainerId);
+    assert.equal(updated.status, 'contatado');
+    assert.equal(calls.length, 0);
+  } finally {
+    if (originalLocalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = originalLocalStorage;
+  }
+}

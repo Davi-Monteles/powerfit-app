@@ -42,7 +42,7 @@ const KEYS = {
   PHOTOS: 'powerfit_photos',
   THEME: 'powerfit_theme',
   INITIALIZED: 'powerfit_initialized',
-  MERCADO_PAGO_TOKEN: 'powerfit_mp_token',
+  DEMO_MODE: 'powerfit_demo_mode',
 };
 
 const STUDENT_AI_SOURCE = 'student_ai';
@@ -59,6 +59,10 @@ function getItem(key) {
 
 function setItem(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function isDemoModeEnabled() {
+  return localStorage.getItem(KEYS.DEMO_MODE) === 'enabled';
 }
 
 function getStudentIntakesForBackup() {
@@ -245,6 +249,52 @@ export async function resolveStudentProfileForAuthUser(authUser, { persist = fal
   return resolved;
 }
 
+export async function getAuthenticatedProfile(authUser) {
+  if (!authUser?.id || !authUser?.email) return null;
+
+  const cleanEmail = normalizeEmail(authUser.email);
+  const metadata = authUser.user_metadata || {};
+  const baseProfile = {
+    id: authUser.id,
+    auth_user_id: authUser.id,
+    email: cleanEmail,
+    name: metadata.name || metadata.full_name || cleanEmail,
+    phone: metadata.phone || '',
+    type: metadata.type === 'personal' ? 'personal' : 'aluno',
+  };
+
+  const studentRows = await safeSupabase(() => supabase
+    .from('students')
+    .select('*')
+    .eq('auth_user_id', authUser.id)
+    .limit(1));
+  const student = Array.isArray(studentRows) ? studentRows[0] : studentRows;
+
+  if (student) {
+    mergeStudentCache(student);
+    const resolved = buildResolvedStudentProfile(baseProfile, student);
+    return setCurrentUser(resolved);
+  }
+
+  const userRows = await safeSupabase(() => supabase
+    .from('users')
+    .select('*')
+    .eq('auth_user_id', authUser.id)
+    .limit(1));
+  const user = Array.isArray(userRows) ? userRows[0] : userRows;
+
+  if (user) {
+    const localUsers = getUsers();
+    const index = localUsers.findIndex(item => item.id === user.id);
+    if (index >= 0) localUsers[index] = { ...localUsers[index], ...user };
+    else localUsers.push(user);
+    setItem(KEYS.USERS, localUsers);
+    return setCurrentUser({ ...baseProfile, ...user });
+  }
+
+  return setCurrentUser(baseProfile);
+}
+
 function isMissingSessionValue(value) {
   return value === undefined || value === null || value === '';
 }
@@ -375,6 +425,8 @@ function buildWorkoutSupabasePayload(workout = {}) {
     personalId: normalized.personalId || null,
     notes: normalized.notes || null,
     assigned_to: normalized.assigned_to || normalized.assignedTo || null,
+    source: normalized.source || null,
+    created_by: normalized.createdBy || null,
     createdAt: normalized.createdAt || null,
     updatedAt: normalized.updatedAt || null,
   };
@@ -696,7 +748,7 @@ export async function fetchWorkoutsForStudent(studentId, fallbackPersonalId = nu
 }
 
 function canUseSupabase() {
-  return isSupabaseConfigured && navigator.onLine;
+  return isSupabaseConfigured && !isDemoModeEnabled() && navigator.onLine;
 }
 
 function mergeRowsIntoCache(key, rows, entity) {
@@ -1036,167 +1088,65 @@ export function getUsers() {
 }
 
 export async function registerUser(userData) {
-  const users = getUsers();
-  const students = getItem(KEYS.STUDENTS) || [];
   const cleanEmail = normalizeEmail(userData.email);
-  
-  const existsInUsers = users.find(u => emailsMatch(u.email, cleanEmail));
-  let existsInStudents = students.find(s => emailsMatch(s.email, cleanEmail));
-  
-  if (existsInUsers) {
-    throw new Error('Email já cadastrado');
-  }
+  if (!canUseSupabase()) throw new Error('Cadastro requer conexão com a internet.');
 
-  let studentId = undefined;
-  let newStudentData = null;
-  let claimedPersonalId = undefined;
-
-  if (userData.type === 'aluno') {
-    if (!existsInStudents) {
-      const remoteStudent = await fetchSupabaseRowByEmail('students', cleanEmail);
-      if (remoteStudent) {
-        existsInStudents = remoteStudent;
-        students.push(remoteStudent);
-      }
-    }
-
-    if (existsInStudents) {
-      // Claim logic: student was created by personal, now they are registering
-      studentId = existsInStudents.id;
-      // FIX: Carry personalId so the session immediately links to the PT
-      claimedPersonalId = existsInStudents.personalId || undefined;
-      
-      // Update the existing student record with the new password
-      existsInStudents.password = userData.password;
-      existsInStudents.name = userData.name || existsInStudents.name;
-      setItem(KEYS.STUDENTS, students);
-      
-      if (canUseSupabase()) {
-         safeSupabase(() => supabase.from('students').update({ password: userData.password, name: existsInStudents.name }).eq('id', studentId));
-      }
-    } else {
-      // Completely new student
-      studentId = generateId();
-      newStudentData = {
-        id: studentId,
-        name: userData.name,
-        email: cleanEmail,
-        phone: userData.phone || '',
-        isPremium: false,
-        workoutIds: [],
-        password: userData.password,
-        createdAt: new Date().toISOString()
-      };
-      students.push(newStudentData);
-      setItem(KEYS.STUDENTS, students);
-    }
-  }
-
-  const user = {
-    id: claimedPersonalId ? studentId : generateId(),
-    ...userData,
+  const { data, error } = await supabase.auth.signUp({
     email: cleanEmail,
-    studentId,
-    personalId: claimedPersonalId,
-    planId: userData.type === 'personal' ? null : undefined,
-    planActivatedAt: undefined,
-    createdAt: new Date().toISOString(),
-  };
+    password: userData.password,
+    options: {
+      data: {
+        name: String(userData.name || '').trim(),
+        phone: String(userData.phone || '').trim(),
+        type: userData.type === 'personal' ? 'personal' : 'aluno',
+      },
+    },
+  });
 
-  users.push(user);
-  setItem(KEYS.USERS, users);
-  const sessionUser = userData.type === 'aluno'
-    ? await resolveStudentProfileForAuthUser(user, { persist: true })
-    : setCurrentUser(user);
-
-
-  if (canUseSupabase()) {
-    if (userData.type !== 'aluno') {
-      let supUser = { id: user.id, type: user.type, name: user.name, email: user.email, password: user.password, "studentLimit": user.studentLimit };
-      safeSupabase(() => supabase.from('users').upsert(supUser));
-    } else if (newStudentData) {
-      safeSupabase(() => supabase.from('students').upsert(newStudentData));
-    }
+  if (error) {
+    if (error.message?.toLowerCase().includes('already registered')) throw new Error('Email já cadastrado');
+    throw new Error(error.message || 'Não foi possível criar a conta.');
   }
-  
-  return sessionUser;
+
+  if (!data?.session) {
+    return { requiresEmailConfirmation: true, email: cleanEmail };
+  }
+
+  return getAuthenticatedProfile(data.user);
 }
 
 export async function loginUser(email, password) {
   const cleanEmail = normalizeEmail(email);
   const cleanPass = password?.trim();
 
-  // 1. Search students first (includes PT-created records with personalId)
-  let students = JSON.parse(localStorage.getItem('powerfit_students') || '[]');
-  let studentData = students.find(u => emailsMatch(u.email, cleanEmail) && u.password === cleanPass);
-
-  if (studentData) {
-    const linkedStudent = students.find(u => emailsMatch(u.email, cleanEmail) && (u.personalId || u.personal_id)) || studentData;
-    studentData = {
-      ...studentData,
-      ...linkedStudent,
-      id: linkedStudent.id,
-      studentId: linkedStudent.id,
-      personalId: linkedStudent.personalId || linkedStudent.personal_id,
-      isPremium: studentData.isPremium === true || linkedStudent.isPremium === true,
-    };
-    const studentSession = resolveStudentProfileFromCache({ ...studentData, type: 'aluno' });
-    setCurrentUser(studentSession);
-    forceSyncData().catch(() => {});
-    return studentSession;
-  } else {
-    let users = JSON.parse(localStorage.getItem('powerfit_users') || '[]');
-    let _user = users.find(u => emailsMatch(u.email, cleanEmail) && u.password === cleanPass);
-    if (_user) {
-      _user = setCurrentUser(_user);
-      forceSyncData().catch(() => {});
-      return _user;
-    }
-  }
-  
-  // 2. SUPABASE FALLBACK (If online — after scorched-earth, localStorage is empty)
-  if (canUseSupabase()) {
-    try {
-      const su = await fetchSupabaseRowByEmail('users', cleanEmail);
-      if (su && su.password === cleanPass) {
-        const sessionUser = setCurrentUser(su);
-        let localUsers = getUsers();
-        if (!localUsers.find(u => u.id === sessionUser.id)) {
-          setItem(KEYS.USERS, [...localUsers, sessionUser]);
-        }
-        // FIX: Sync all data from Supabase immediately
-        forceSyncData().catch(() => {});
-        return sessionUser;
-      }
-
-      const studentRows = await fetchSupabaseRowsByEmail('students', cleanEmail);
-      const authenticatedStudent = studentRows.find(row => row.password === cleanPass);
-      const linkedStudent = studentRows.find(row => row.personalId || row.personal_id) || authenticatedStudent;
-      if (authenticatedStudent && linkedStudent) {
-        const studentData = {
-          ...authenticatedStudent,
-          ...linkedStudent,
-          id: linkedStudent.id,
-          studentId: linkedStudent.id,
-          personalId: linkedStudent.personalId || linkedStudent.personal_id,
-          isPremium: authenticatedStudent.isPremium === true || linkedStudent.isPremium === true,
-          type: 'aluno',
-        };
-        const studentSession = await resolveStudentProfileForAuthUser(studentData, { persist: true });
-        const sessionUser = studentSession;
-        let localStudents = getItem(KEYS.STUDENTS) || [];
-        if (!localStudents.find(s => s.id === studentData.id)) {
-          setItem(KEYS.STUDENTS, [...localStudents, sessionUser]);
-        }
-        forceSyncData().catch(() => {});
-        return sessionUser;
-      }
-    } catch (e) {
-      if (import.meta.env.DEV) console.debug('[PowerFit] Supabase auth fallback skipped:', e.message);
-    }
+  if (isDemoModeEnabled()) {
+    const students = getItem(KEYS.STUDENTS) || [];
+    const student = students.find(item => emailsMatch(item.email, cleanEmail) && item.password === cleanPass);
+    const users = getUsers();
+    const user = users.find(item => emailsMatch(item.email, cleanEmail) && item.password === cleanPass);
+    const demoProfile = student ? buildResolvedStudentProfile({ ...student, type: 'aluno' }, student) : user;
+    if (demoProfile) return setCurrentUser(demoProfile);
   }
 
-  throw new Error('Email ou senha incorretos');
+  if (!canUseSupabase()) throw new Error('Login requer conexão com a internet.');
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPass });
+  if (error || !data?.user) throw new Error('Email ou senha incorretos');
+
+  const profile = await getAuthenticatedProfile(data.user);
+  forceSyncData().catch(() => {});
+  return profile;
+}
+
+export async function requestPasswordReset(email) {
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail) throw new Error('Informe seu email para recuperar a senha.');
+  if (!canUseSupabase()) throw new Error('Recuperação de senha requer conexão com a internet.');
+
+  const redirectTo = `${globalThis.location?.origin || ''}/reset-password`;
+  const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+  if (error) throw new Error(error.message || 'Não foi possível enviar o email de recuperação.');
+  return true;
 }
 
 export function getCurrentUser() {
@@ -1354,7 +1304,6 @@ export async function saveStudent(studentData) {
     medicalNotes: clean(student.medicalNotes),
     personalId: clean(student.personalId),
     isPremium: student.isPremium === true,
-    password: student.password || '123456',
     workoutIds: Array.isArray(student.workoutIds) ? student.workoutIds : [],
     workoutSchedule: Array.isArray(student.workoutSchedule) ? student.workoutSchedule : null,
     createdAt: clean(student.createdAt),
@@ -2050,15 +1999,6 @@ export function setTheme(theme) {
   setItem(KEYS.THEME, theme);
 }
 
-// ========== MERCADO PAGO ==========
-export function getMercadoPagoToken() {
-  return getItem(KEYS.MERCADO_PAGO_TOKEN) || '';
-}
-
-export function saveMercadoPagoToken(token) {
-  setItem(KEYS.MERCADO_PAGO_TOKEN, token);
-}
-
 // ========== IMC / METRICS CALCULATIONS ==========
 export function calculateIMC(weight, heightCm) {
   const peso = Number(weight);
@@ -2069,7 +2009,7 @@ export function calculateIMC(weight, heightCm) {
   const imc = peso / Math.pow(alturaMetros, 2);
   
   if (!isFinite(imc) || imc <= 0) return null;
-  let classification = '';
+  let classification;
   if (imc < 18.5) classification = 'Abaixo do peso';
   else if (imc < 25) classification = 'Peso normal';
   else if (imc < 30) classification = 'Sobrepeso';
@@ -2178,7 +2118,7 @@ export function importData(jsonString) {
     if (importedCurrentUser) setItem(KEYS.CURRENT_USER, importedCurrentUser);
     return true;
   } catch (err) {
-    throw new Error('Arquivo de backup inválido: ' + err.message);
+    throw new Error('Arquivo de backup inválido: ' + err.message, { cause: err });
   }
 }
 
@@ -2191,89 +2131,6 @@ export function seedDemoData() {
 
 export function isUserVIP(email) {
   return isVipUser(email);
-}
-
-export function activateStudentProDemo(profile = null) {
-  const source = profile || getCurrentUser();
-  const target = source?.id || source?.studentId || source?.student_id || source?.email;
-  if (!target) return false;
-
-  const activated = activatePremium(target);
-  if (!activated) return false;
-
-  const resolved = resolveStudentProfileFromCache(getCurrentUser() || source);
-  if (!resolved) return activated;
-
-  const premiumSession = {
-    ...resolved,
-    isPremium: isStudentPremium(resolved),
-  };
-  setCurrentUser(premiumSession);
-  return getCurrentUser();
-}
-
-export function activatePremium(userId) {
-  const users = getItem(KEYS.USERS) || [];
-  const students = getItem(KEYS.STUDENTS) || [];
-  const currentUser = getCurrentUser();
-  const targetEmail = normalizeEmail(
-    currentUser?.email ||
-    users.find(u => u.id === userId || u.studentId === userId || u.student_id === userId || u.email === userId)?.email ||
-    students.find(s => s.id === userId || s.studentId === userId || s.student_id === userId || s.email === userId)?.email ||
-    userId
-  );
-  const premiumExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  let changed = false;
-  const matchesTarget = (record = {}) => (
-    record.id === userId ||
-    record.studentId === userId ||
-    record.student_id === userId ||
-    emailsMatch(record.email, userId) ||
-    emailsMatch(record.email, targetEmail)
-  );
-
-  const updatedStudents = students.map(student => {
-    if (!matchesTarget(student)) return student;
-    changed = true;
-    return { ...student, isPremium: true, premiumExpiresAt };
-  });
-
-  const updatedUsers = users.map(user => {
-    if (!matchesTarget(user)) return user;
-    changed = true;
-    return { ...user, isPremium: true, premiumExpiresAt };
-  });
-
-  if (!changed) return false;
-
-  setItem(KEYS.USERS, updatedUsers);
-  setItem(KEYS.STUDENTS, updatedStudents);
-
-  const currentMatches = currentUser && matchesTarget(currentUser);
-  if (currentMatches) {
-    const updatedStudent = updatedStudents.find(matchesTarget);
-    const updatedUser = updatedUsers.find(matchesTarget);
-    const updatedSession = stripSensitiveSessionFields({
-      ...(updatedUser || {}),
-      ...(updatedStudent || {}),
-      ...currentUser,
-      isPremium: true,
-      premiumExpiresAt,
-      type: currentUser.type || 'aluno',
-    });
-    setItem(KEYS.CURRENT_USER, updatedSession);
-    if (canUseSupabase() && updatedStudent?.id) {
-      safeSupabase(() => supabase.from('students').update({ isPremium: true, premiumExpiresAt }).eq('id', updatedStudent.id));
-    }
-    notifyDataChange('users');
-    notifyDataChange('students');
-    return updatedSession;
-  }
-
-  notifyDataChange('users');
-  notifyDataChange('students');
-  return true;
 }
 
 // ========== SAVE PROFILE (EMAIL-FIRST LOOKUP) ==========

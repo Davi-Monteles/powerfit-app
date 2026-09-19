@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { getCurrentUser, hydrateSessionUser, logout, getTheme, setTheme as saveTheme, getUserPlan, fetchSupabaseRowByEmail, normalizeEmail, isStudentPremium, resolveStudentProfileForAuthUser } from './lib/storage';
+import { getAuthenticatedProfile, getCurrentUser, logout, getTheme, setTheme as saveTheme, getUserPlan, isStudentPremium } from './lib/storage';
 import { supabase } from './lib/supabaseClient';
 import { stripSensitiveSessionFields } from './lib/security';
 import { AuthContext, ToastContext, ThemeContext, useAuth } from './lib/app-context';
@@ -24,8 +24,11 @@ import { PWAInstallProvider } from './hooks/usePWAInstall';
 import PricingPlans from './pages/PricingPlans';
 import MyPlan from './pages/MyPlan';
 import PersonalMarcio from './pages/PersonalMarcio';
+import ResetPassword from './pages/ResetPassword';
 import { AboutPage, PrivacyPage, SecurityPage, TermsPage, UpdatesPage } from './pages/PublicInfoPages';
 import { ensurePreviewDemoSeed, getPreviewDemoNotice } from './lib/preview-environment';
+
+const demoModeEnabled = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
 
 function ProtectedRoute({ children, allowedType, requirePlan }) {
   const { user } = useAuth();
@@ -47,7 +50,7 @@ function ProtectedRoute({ children, allowedType, requirePlan }) {
 function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const previewNotice = getPreviewDemoNotice();
+  const previewNotice = getPreviewDemoNotice(undefined, demoModeEnabled);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -103,59 +106,16 @@ export default function App() {
   useEffect(() => { 
     const initAuth = async () => {
       try {
-        ensurePreviewDemoSeed();
-
-        // 3. AUTH FLOW INTELIGENTE
+        ensurePreviewDemoSeed(undefined, undefined, demoModeEnabled);
         const { data: { session } } = await supabase.auth.getSession();
-        
-        let activeEmail = null;
-        if (session && session.user) activeEmail = session.user.email;
-        else {
-          const local = getCurrentUser();
-          if (local) activeEmail = local.email;
-        }
-
-        if (activeEmail) {
-          const cleanEmail = normalizeEmail(activeEmail);
-          
-          let profile = null;
-          const localUser = getCurrentUser();
-          // Buscar perfil em students e users sem pedir Accept: object, evitando 406 e sessão parcial.
-          const studentRow = await fetchSupabaseRowByEmail('students', cleanEmail);
-          if (studentRow || localUser?.type === 'aluno') {
-            profile = await resolveStudentProfileForAuthUser({ ...localUser, ...(studentRow || {}), email: cleanEmail, type: 'aluno' }, { persist: true });
-          } else {
-            const userRow = await fetchSupabaseRowByEmail('users', cleanEmail);
-            if (userRow) profile = hydrateSessionUser({ ...localUser, ...userRow });
-          }
-
-          if (profile) {
-            if (profile.type === 'aluno') profile.isPremium = isStudentPremium(profile);
-            const safeProfile = stripSensitiveSessionFields(profile);
-            setUser(safeProfile);
-            localStorage.setItem('powerfit_current_user', JSON.stringify(safeProfile));
-          } else {
-            let localUser = getCurrentUser();
-            if (localUser) {
-              if (localUser.weight == 55) localUser.weight = 0;
-              if (localUser.height == 55) localUser.height = 0;
-              if (localUser.birthDate === '05/05/0055') localUser.birthDate = '';
-              setUser(localUser);
-            } else {
-              setUser(null);
-            }
-          }
-        }
+        const profile = session?.user
+          ? await getAuthenticatedProfile(session.user)
+          : (demoModeEnabled ? getCurrentUser() : null);
+        const safeProfile = profile ? stripSensitiveSessionFields(profile) : null;
+        if (safeProfile?.type === 'aluno') safeProfile.isPremium = isStudentPremium(safeProfile);
+        setUser(safeProfile);
       } catch {
-        let localUser = getCurrentUser();
-        if (localUser) {
-          if (localUser.weight == 55) localUser.weight = 0;
-          if (localUser.height == 55) localUser.height = 0;
-          if (localUser.birthDate === '05/05/0055') localUser.birthDate = '';
-          setUser(localUser);
-        } else {
-          setUser(null);
-        }
+        setUser(demoModeEnabled ? getCurrentUser() : null);
       } finally {
         setLoadingApp(false);
       }
@@ -204,8 +164,9 @@ export default function App() {
               <Route path="/termos" element={<TermsPage />} />
               <Route path="/privacidade" element={<PrivacyPage />} />
               <Route path="/seguranca" element={<SecurityPage />} />
-              <Route path="/upgrade" element={<Upgrade />} />
+              <Route path="/upgrade" element={<ProtectedRoute allowedType="aluno"><Upgrade /></ProtectedRoute>} />
               <Route path="/auth" element={user?.type ? <Navigate to={isStudent ? '/aluno' : user.type === 'master' ? '/master' : '/dashboard'} replace /> : <Auth onLogin={handleLogin} />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               {/* Personal Trainer Routes */}
               <Route path="/planos" element={user?.type === 'personal' ? <PricingPlans /> : <Navigate to="/auth" replace />} />
                   <Route path="/dashboard" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>} />

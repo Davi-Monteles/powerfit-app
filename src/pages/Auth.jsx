@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { registerUser, loginUser, hydrateSessionUser, getUserPlan, fetchSupabaseRowByEmail, resolveStudentProfileForAuthUser } from '../lib/storage';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { registerUser, loginUser, hydrateSessionUser, getUserPlan, requestPasswordReset } from '../lib/storage';
 import { stripSensitiveSessionFields } from '../lib/security';
 import { getPreviewDemoNotice } from '../lib/preview-environment';
 import { Zap, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
@@ -8,19 +8,21 @@ import PwaInstallHint from '../components/PwaInstallHint';
 import Modal from '../components/Modal';
 
 export default function Auth({ onLogin }) {
-  const [tab, setTab] = useState('login');
+  const initialAccountType = new URLSearchParams(globalThis.location?.search || '').get('type');
+  const requestedAccountType = initialAccountType === 'personal' || initialAccountType === 'aluno' ? initialAccountType : 'aluno';
+  const [tab, setTab] = useState(initialAccountType ? 'register' : 'login');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '' });
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [loginForm, setLoginForm] = useState({ email: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', type: 'aluno' });
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', type: requestedAccountType });
   const [loginPassword, setLoginPassword] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-  const previewNotice = getPreviewDemoNotice();
+  const demoModeEnabled = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+  const previewNotice = getPreviewDemoNotice(undefined, demoModeEnabled);
 
   const persistSafeSession = (sessionUser) => {
     const hydrated = hydrateSessionUser(sessionUser);
@@ -36,40 +38,14 @@ export default function Auth({ onLogin }) {
     setRegisterPassword('');
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const type = params.get('type');
-    if (type === 'personal' || type === 'aluno') {
-      setRegisterForm(prev => ({ ...prev, type }));
-      setTab('register');
-    }
-  }, [location]);
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     const password = loginPassword;
     try {
-      let user = await loginUser(loginForm.email, password);
-      
-      // Explicit fetch to sync latest data
-      if (user?.email) {
-        try {
-          if (user.type === 'aluno') {
-            user = await resolveStudentProfileForAuthUser(user, { persist: true });
-          } else {
-            const freshData = await fetchSupabaseRowByEmail('users', user.email);
-            if (freshData) {
-              user = { ...user, ...freshData };
-            }
-          }
-        } catch (err) {
-          if (import.meta.env.DEV) console.debug('[PowerFit] Fresh auth sync skipped:', err.message);
-        }
-      }
-
-      user = persistSafeSession(user);
+      const user = persistSafeSession(await loginUser(loginForm.email, password));
+      if (!user) throw new Error('Não foi possível carregar seu perfil.');
       onLogin(user);
       
       const plan = getUserPlan();
@@ -109,12 +85,24 @@ export default function Auth({ onLogin }) {
 
     setLoading(true);
     try {
-      const user = persistSafeSession(await registerUser({ ...registerForm, password }));
+      const registration = await registerUser({ ...registerForm, password });
+      if (registration?.requiresEmailConfirmation) {
+        setAlertModal({
+          open: true,
+          title: 'Confirme seu email',
+          message: `Enviamos um link de confirmação para ${registration.email}. Depois de confirmar, volte para entrar.`,
+        });
+        setTab('login');
+        setLoginForm({ email: registration.email });
+        return;
+      }
+
+      const user = persistSafeSession(registration);
+      if (!user) throw new Error('Não foi possível carregar seu perfil.');
       onLogin(user);
       
       if (user.type === 'aluno') {
-        // Alunos que entram sozinhos devem ver os planos primeiro para se tornarem "Pro"
-        navigate('/planos');
+        navigate('/aluno');
       } else if (user.type === 'personal') {
         navigate('/planos');
       } else {
@@ -124,6 +112,23 @@ export default function Auth({ onLogin }) {
       setError(err.message);
     } finally {
       clearPasswordInputs();
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await requestPasswordReset(loginForm.email);
+      setAlertModal({
+        open: true,
+        title: 'Confira seu email',
+        message: 'Enviamos um link seguro para você definir uma nova senha.',
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -147,10 +152,12 @@ export default function Auth({ onLogin }) {
           <button className={"tab " + (tab === 'register' ? 'active' : '')} onClick={() => { setTab('register'); setError(''); }}>Cadastrar</button>
         </div>
 
-        <div className="auth-demo-notice">
-          {previewNotice && <>{previewNotice}<br /></>}
-          Personal: trainer.demo@powerfit.test / demo123<br />Aluno: student.demo@powerfit.test / demo123
-        </div>
+        {previewNotice && (
+          <div className="auth-demo-notice">
+            {previewNotice}<br />
+            Personal: trainer.demo@powerfit.test / demo123<br />Aluno: student.demo@powerfit.test / demo123
+          </div>
+        )}
 
         {tab === 'login' && <PwaInstallHint />}
 
@@ -179,7 +186,7 @@ export default function Auth({ onLogin }) {
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
             <div style={{ marginTop: '16px', textAlign: 'center' }}>
-              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAlertModal({ open: true, title: 'Recuperar senha', message: 'Um link de recuperação seria enviado para seu email neste app em produção.' })}>
+              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }} onClick={handlePasswordReset} disabled={loading}>
                 Esqueci minha senha
               </button>
             </div>
@@ -244,9 +251,9 @@ export default function Auth({ onLogin }) {
       </div>
 
       <div style={{ position: 'absolute', bottom: '24px', width: '100%', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-        <span style={{ cursor: 'pointer' }} onClick={() => setAlertModal({ open: true, title: 'Termos de Uso', message: 'Termos de Uso não existem nesta demo.' })}>Termos de Uso</span>
+        <button type="button" className="auth-legal-link" onClick={() => navigate('/termos')}>Termos de Uso</button>
         <span style={{ margin: '0 8px' }}>•</span>
-        <span style={{ cursor: 'pointer' }} onClick={() => setAlertModal({ open: true, title: 'Política de Privacidade', message: 'Política de Privacidade não existe nesta demo.' })}>Política de Privacidade</span>
+        <button type="button" className="auth-legal-link" onClick={() => navigate('/privacidade')}>Política de Privacidade</button>
       </div>
 
       <Modal
@@ -448,6 +455,16 @@ export default function Auth({ onLogin }) {
         }
         
         .input-toggle:hover { color: var(--text-primary); }
+
+        .auth-legal-link {
+          border: 0;
+          padding: 0;
+          background: none;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+          text-decoration: underline;
+        }
       `}</style>
     </div>
   );

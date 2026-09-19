@@ -43,8 +43,10 @@ const messages = buildGroqMessages({
   ],
 });
 
-assert.deepEqual(messages, [
-  { role: 'system', content: 'Prompt do sistema' },
+assert.equal(messages[0].role, 'system');
+assert.match(messages[0].content, /Não forneça diagnóstico médico/);
+assert.match(messages[0].content, /Contexto do aplicativo:\nPrompt do sistema/);
+assert.deepEqual(messages.slice(1), [
   { role: 'user', content: 'Mensagem anterior' },
   { role: 'assistant', content: 'Resposta anterior' },
 ]);
@@ -55,8 +57,7 @@ const messagesWithExplicitUserMessage = buildGroqMessages({
   chatHistory: [{ role: 'assistant', content: 'Resposta anterior' }],
 });
 
-assert.deepEqual(messagesWithExplicitUserMessage, [
-  { role: 'system', content: 'Prompt do sistema' },
+assert.deepEqual(messagesWithExplicitUserMessage.slice(1), [
   { role: 'assistant', content: 'Resposta anterior' },
   { role: 'user', content: 'Mensagem atual' },
 ]);
@@ -67,12 +68,13 @@ const messagesWithoutDuplicatedUserMessage = buildGroqMessages({
   chatHistory: [{ role: 'user', content: 'Mensagem atual' }],
 });
 
-assert.deepEqual(messagesWithoutDuplicatedUserMessage, [
-  { role: 'system', content: 'Prompt do sistema' },
+assert.deepEqual(messagesWithoutDuplicatedUserMessage.slice(1), [
   { role: 'user', content: 'Mensagem atual' },
 ]);
 
 const originalKey = process.env.GROQ_API_KEY;
+const originalSupabaseUrl = process.env.SUPABASE_URL;
+const originalSupabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 delete process.env.GROQ_API_KEY;
 
 const missingKeyResponse = createResponse();
@@ -86,6 +88,19 @@ else process.env.GROQ_API_KEY = originalKey;
 
 const originalFetch = globalThis.fetch;
 process.env.GROQ_API_KEY = 'server-secret';
+process.env.SUPABASE_URL = 'https://powerfit-test.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+globalThis.fetch = async () => ({
+  ok: true,
+  async json() {
+    return { id: 'authenticated-user-id' };
+  },
+});
+
+const unauthenticatedResponse = createResponse();
+await handler({ method: 'POST', body: { message: 'Oi' } }, unauthenticatedResponse);
+assert.equal(unauthenticatedResponse.statusCode, 401);
+assert.deepEqual(unauthenticatedResponse.body, { ok: false, errorCode: 'AUTH_REQUIRED' });
 
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
@@ -100,6 +115,7 @@ let invalidJsonThrown = false;
 try {
   await handler({
     method: 'POST',
+    headers: { authorization: 'Bearer valid-test-token' },
     get body() {
       throw new Error('Invalid JSON');
     },
@@ -114,7 +130,7 @@ assert.deepEqual(invalidJsonResponse.body, { ok: false, errorCode: 'INVALID_JSON
 assert.equal(consoleMessages.some((message) => message.includes('server-secret')), false);
 
 const invalidJsonStringResponse = createResponse();
-await handler({ method: 'POST', body: '{invalid-json' }, invalidJsonStringResponse);
+await handler({ method: 'POST', headers: { authorization: 'Bearer valid-test-token' }, body: '{invalid-json' }, invalidJsonStringResponse);
 assert.equal(invalidJsonStringResponse.statusCode, 400);
 assert.deepEqual(invalidJsonStringResponse.body, { ok: false, errorCode: 'INVALID_JSON' });
 
@@ -124,6 +140,14 @@ console.log = originalConsoleLog;
 
 let upstreamRequest = null;
 globalThis.fetch = async (url, options) => {
+  if (url === 'https://powerfit-test.supabase.co/auth/v1/user') {
+    return {
+      ok: true,
+      async json() {
+        return { id: 'authenticated-user-id' };
+      },
+    };
+  }
   upstreamRequest = { url, options };
   return {
     ok: true,
@@ -134,7 +158,7 @@ globalThis.fetch = async (url, options) => {
 };
 
 const successResponse = createResponse();
-await handler({ method: 'POST', body: { systemPrompt: 'Prompt', chatHistory: [{ role: 'user', content: 'Oi' }] } }, successResponse);
+await handler({ method: 'POST', headers: { authorization: 'Bearer valid-test-token' }, body: { systemPrompt: 'Prompt', chatHistory: [{ role: 'user', content: 'Oi' }] } }, successResponse);
 
 assert.equal(successResponse.statusCode, 200);
 assert.equal(successResponse.body.ok, true);
@@ -143,7 +167,7 @@ assert.equal(upstreamRequest.url, 'https://api.groq.com/openai/v1/chat/completio
 assert.equal(upstreamRequest.options.headers.Authorization, 'Bearer server-secret');
 
 const validJsonStringResponse = createResponse();
-await handler({ method: 'POST', body: JSON.stringify({ systemPrompt: 'Prompt', message: 'Oi' }) }, validJsonStringResponse);
+await handler({ method: 'POST', headers: { authorization: 'Bearer valid-test-token' }, body: JSON.stringify({ systemPrompt: 'Prompt', message: 'Oi' }) }, validJsonStringResponse);
 assert.equal(validJsonStringResponse.statusCode, 200);
 assert.equal(validJsonStringResponse.body.ok, true);
 assert.equal(validJsonStringResponse.body.message, 'Resposta do servidor');
@@ -151,3 +175,7 @@ assert.equal(validJsonStringResponse.body.message, 'Resposta do servidor');
 globalThis.fetch = originalFetch;
 if (originalKey === undefined) delete process.env.GROQ_API_KEY;
 else process.env.GROQ_API_KEY = originalKey;
+if (originalSupabaseUrl === undefined) delete process.env.SUPABASE_URL;
+else process.env.SUPABASE_URL = originalSupabaseUrl;
+if (originalSupabaseAnonKey === undefined) delete process.env.SUPABASE_ANON_KEY;
+else process.env.SUPABASE_ANON_KEY = originalSupabaseAnonKey;

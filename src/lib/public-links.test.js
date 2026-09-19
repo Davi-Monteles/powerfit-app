@@ -77,8 +77,8 @@ assert.ok(
 );
 
 assert.ok(
-  publicInfoSource.includes('Rascunho-base para revisão. Este texto não substitui revisão jurídica.'),
-  'Legal pages must show draft-base legal review note',
+  publicInfoSource.includes('Última atualização: 19 de setembro de 2026.'),
+  'Legal pages must show their last update date',
 );
 
 for (const title of ['Termos de uso', 'Privacidade', 'Segurança']) {
@@ -89,3 +89,4 @@ assert.match(publicInfoSource, /Dados coletados|dados coletados/i, 'Legal copy m
 assert.match(publicInfoSource, /Supabase/, 'Legal copy must mention Supabase backend');
 assert.match(publicInfoSource, /fase piloto/, 'Legal copy must mention pilot phase');
 assert.match(publicInfoSource, /WhatsApp informado no site/, 'Legal copy must mention contact channel');
+assert.match(publicInfoSource, /acesso, correção ou exclusão/, 'Privacy copy must mention data-subject rights');

@@ -1,25 +1,8 @@
-import { useState } from 'react';
-import { useToast } from '../lib/app-context';
 import { STUDENT_PLANS } from '../lib/storage';
 import { Crown, CheckCircle, Shield, Zap, TrendingUp, Target } from 'lucide-react';
 
-export default function PremiumLobby({ onUpgrade }) {
-  const addToast = useToast();
-  const [loading, setLoading] = useState(false);
+export default function PremiumLobby() {
   const plan = STUDENT_PLANS[1];
-
-  const handleSubscribe = async () => {
-    setLoading(true);
-    // Para alunos independentes, usamos a funcionalidade de simulação da demo
-    setTimeout(() => {
-      addToast('Ativando acesso PRO demo...', 'success');
-      // Na demo, simulamos a liberacao local sem pagamento real.
-      setTimeout(() => {
-        onUpgrade();
-        addToast('Assinatura PRO ativada! Bem-vindo ao próximo nível.', 'success');
-      }, 2000);
-    }, 1000);
-  };
 
   const benefits = [
     { icon: <Zap size={20} className="text-primary" />, title: "IA Personal Trainer", desc: "Uma inteligência artificial treinada para analisar seus treinos e sugerir ajustes baseados na sua evolução." },
@@ -62,7 +45,7 @@ export default function PremiumLobby({ onUpgrade }) {
             <div className="badge badge-primary" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', fontWeight: 'bold' }}>EXCLUSIVO ALUNOS</div>
 
             <h3 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{plan.name}</h3>
-            <div className="badge" style={{ display: 'inline-flex', marginBottom: '12px', background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.22)', color: '#67e8f9', fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Modo demonstração</div>
+            <div className="badge" style={{ display: 'inline-flex', marginBottom: '12px', background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.22)', color: '#67e8f9', fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Em breve</div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>Autonomia total nos seus treinos.</p>
             
             <div style={{ fontSize: '3.5rem', fontWeight: '800', margin: '0 0 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
@@ -72,7 +55,7 @@ export default function PremiumLobby({ onUpgrade }) {
               <span style={{ fontSize: '1rem', color: 'var(--text-muted)', marginTop: 'auto', marginBottom: '10px', marginLeft: '4px' }}>/mês</span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4, margin: '-12px 0 24px' }}>
-              Ativação simulada para validação. Pagamento real ainda não conectado.
+              A contratação será liberada quando o checkout estiver conectado.
             </p>
 
             <ul style={{ textAlign: 'left', marginBottom: '32px', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.95rem' }}>
@@ -83,13 +66,12 @@ export default function PremiumLobby({ onUpgrade }) {
             <button 
               className="btn btn-primary btn-lg" 
               style={{ width: '100%', borderRadius: '12px', fontSize: '1.1rem', padding: '16px' }}
-              onClick={handleSubscribe}
-              disabled={loading}
+              disabled
             >
-              {loading ? 'Ativando...' : 'Ativar PRO Demo'}
+              Indisponível no piloto
             </button>
             <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-               <Shield size={14} /> Fluxo demo local, sem pagamento real
+               <Shield size={14} /> Nenhuma cobrança será realizada
             </div>
           </div>
         </div>

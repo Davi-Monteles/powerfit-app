@@ -49,8 +49,6 @@ const loadStorage = new AsyncFunction(
   'stripSensitiveSessionFields',
   `${storageSource}
 return {
-  activatePremium,
-  activateStudentProDemo: typeof activateStudentProDemo === 'function' ? activateStudentProDemo : null,
   getCurrentUser,
   hydrateSessionUser,
   isStudentPremium,
@@ -67,8 +65,6 @@ const stripSensitiveSessionFields = (value) => {
 };
 
 const {
-  activatePremium,
-  activateStudentProDemo,
   getCurrentUser,
   hydrateSessionUser,
   isStudentPremium,
@@ -94,7 +90,7 @@ const studentUser = {
   email: studentEmail,
   name: 'Aluno Pro Demo',
   type: 'aluno',
-  isPremium: false,
+  isPremium: true,
   personalId,
   personal_id: personalId,
 };
@@ -109,17 +105,13 @@ localStorage.setItem('powerfit_students', JSON.stringify([
     email: studentEmail,
     name: 'Aluno Pro Demo',
     type: 'aluno',
-    isPremium: false,
+    isPremium: true,
     personalId,
     personal_id: personalId,
     workoutIds: ['workout-1'],
   },
 ]));
 
-assert.equal(typeof activatePremium, 'function');
-assert.equal(typeof activateStudentProDemo, 'function');
-
-const upgraded = activateStudentProDemo(studentUser);
 const persistedCurrentUser = JSON.parse(localStorage.getItem('powerfit_current_user'));
 const persistedUsers = JSON.parse(localStorage.getItem('powerfit_users'));
 const persistedStudents = JSON.parse(localStorage.getItem('powerfit_students'));
@@ -127,7 +119,6 @@ const hydratedAfterReload = hydrateSessionUser(persistedCurrentUser);
 const currentAfterReload = getCurrentUser();
 const resolvedAfterReload = resolveStudentProfileFromCache(persistedCurrentUser);
 
-assert.equal(upgraded.isPremium, true);
 assert.equal(persistedCurrentUser.isPremium, true);
 assert.equal(persistedUsers.find(user => user.email === studentEmail).isPremium, true);
 assert.equal(persistedStudents.find(student => student.email === studentEmail).isPremium, true);
@@ -143,11 +134,11 @@ const premiumLobbySource = readFileSync(new URL('../pages/PremiumLobby.jsx', imp
 const myPlanSource = readFileSync(new URL('../pages/MyPlan.jsx', import.meta.url), 'utf8');
 const pricingPlansSource = readFileSync(new URL('../pages/PricingPlans.jsx', import.meta.url), 'utf8');
 
-assert.match(upgradeSource, /Modo demonstração/);
-assert.match(upgradeSource, /Ativação simulada para validação/);
+assert.match(upgradeSource, /Indisponível no piloto/);
+assert.match(upgradeSource, /Nenhuma cobrança será realizada/);
 assert.doesNotMatch(upgradeSource, /<span>Assinar Agora<\/span>/);
-assert.match(premiumLobbySource, /Modo demonstração/);
-assert.match(premiumLobbySource, /Pagamento real ainda não conectado/);
-assert.match(myPlanSource, /Plano do aluno em modo demo/);
-assert.match(pricingPlansSource, /Modo demo do aluno/);
-assert.match(pricingPlansSource, /Pagamento real ainda não conectado/);
+assert.match(premiumLobbySource, /Indisponível no piloto/);
+assert.match(premiumLobbySource, /Nenhuma cobrança será realizada/);
+assert.match(myPlanSource, /Acesso PRO do aluno ativo para este piloto/);
+assert.match(pricingPlansSource, /Plano PRO ainda indisponível neste piloto/);
+assert.match(pricingPlansSource, /Nenhuma cobrança será realizada/);

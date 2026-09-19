@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/app-context';
-import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule, activateStudentProDemo } from '../lib/storage';
+import { getStudentVisibleEvolution, calculateIMC, calculateTMB, calculateCalories, getTrainerById, updateWorkoutScheduleStatus, getNotificationsByStudent, markNotificationsAsRead, fetchWorkoutsForStudent, isStudentPremium, resolveStudentProfileForAuthUser, refreshEvolutionFromSupabase, refreshScheduleFromSupabase, getStudentVisibleSchedule } from '../lib/storage';
 import { useStorageSync } from '../lib/useStorageSync';
 import { LayoutDashboard, Dumbbell, TrendingUp, Scale, Activity, Flame, Heart, Calendar, Users, Bell, ClipboardList, ShieldAlert } from 'lucide-react';
 
@@ -27,19 +27,24 @@ const metrics = [
 ];
 
 export default function StudentDashboard() {
-  const { user, login: setAuthUser } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [personal, setPersonal] = useState(null);
-  const [workouts, setWorkouts] = useState([]);
+  const [workouts, setWorkouts] = useState(() => {
+    try {
+      return user?.id ? JSON.parse(localStorage.getItem(`workouts_${user.id}`) || '[]') : [];
+    } catch {
+      return [];
+    }
+  });
   const [evolution, setEvolution] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [showStudentIntake, setShowStudentIntake] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [pendingCompletionId, setPendingCompletionId] = useState(null);
-  const workoutsInitRef = useRef(false);
-  const paymentProcessedRef = useRef(false);
+  const [dashboardNow] = useState(() => Date.now());
   const { revision } = useStorageSync('notifications');
   const activeStudentId = student?.id || student?.studentId || student?.student_id;
   const studentPersonalId = student?.personalId;
@@ -60,16 +65,6 @@ export default function StudentDashboard() {
     if (!student || !workout || workout.source !== 'rascunho_anamnese' || !action) return;
     action(student, workout);
   };
-
-  // Safe workout init — runs once per mount via ref guard
-  useEffect(() => {
-    if (!user?.id || workoutsInitRef.current) return;
-    workoutsInitRef.current = true;
-    const saved = JSON.parse(localStorage.getItem("workouts_" + user.id) || '[]');
-    if (saved.length) {
-      setWorkouts(saved);
-    }
-  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -194,29 +189,6 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleStudentProUpgrade = () => {
-    const upgraded = activateStudentProDemo(student || user);
-    if (upgraded && typeof upgraded === 'object') {
-      setAuthUser(upgraded);
-      setStudent({ ...upgraded, isPremium: isStudentPremium(upgraded) });
-    }
-  };
-
-  useEffect(() => {
-    if (paymentProcessedRef.current) return;
-    if (student && !student.isPremium) {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('payment') === 'success') {
-        paymentProcessedRef.current = true;
-        import('../lib/storage').then(({ saveStudent, getStudentById: getById }) => {
-          saveStudent({ ...student, isPremium: true });
-          window.history.replaceState({}, document.title, window.location.pathname);
-          setStudent(getById(student.id || student.studentId));
-        });
-      }
-    }
-  }, [student]);
-
   // PREVENT BLACK SCREEN — early return AFTER all hooks
   if (!user) return null;
 
@@ -229,7 +201,7 @@ export default function StudentDashboard() {
   const weight = Number(student?.weight) || 0;
   const height = Number(student?.height) || 0;
   const age = student?.birthDate 
-    ? Math.floor((Date.now() - new Date(student.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    ? Math.floor((dashboardNow - new Date(student.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : 0;
   
   const imc = calculateIMC(weight, height);
@@ -348,7 +320,7 @@ export default function StudentDashboard() {
           <AIChat student={student} isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
         </>
       ) : (
-        <PremiumLobby onUpgrade={handleStudentProUpgrade} />
+        <PremiumLobby />
       )}
 
 

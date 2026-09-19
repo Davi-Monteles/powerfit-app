@@ -123,22 +123,11 @@ function InfoShell({ eyebrow, title, children }) {
   );
 }
 
-function DraftNote({ legal = false }) {
-  return (
-    <div className="info-note">
-      {legal
-        ? 'Rascunho-base para revisão. Este texto não substitui revisão jurídica.'
-        : 'Rascunho para revisão de texto antes da publicação final.'}
-    </div>
-  );
-}
-
 export function AboutPage() {
   return (
-    <InfoShell eyebrow="Rascunho" title="Sobre o PowerFit">
+    <InfoShell eyebrow="Institucional" title="Sobre o PowerFit">
       <p>PowerFit é uma ferramenta criada para personal trainers acompanharem alunos e treinos de forma mais prática.</p>
       <p>A proposta é organizar rotina, treinos, evolução e comunicação em um fluxo simples para personal e aluno.</p>
-      <DraftNote />
     </InfoShell>
   );
 }
@@ -156,9 +145,8 @@ export function UpdatesPage() {
 
 function LegalPage({ title, children }) {
   return (
-    <InfoShell eyebrow="Rascunho-base" title={title}>
+    <InfoShell eyebrow="Informações legais" title={title}>
       {children}
-      <DraftNote legal />
     </InfoShell>
   );
 }
@@ -166,11 +154,14 @@ function LegalPage({ title, children }) {
 export function TermsPage() {
   return (
     <LegalPage title="Termos de uso">
-      <p>PowerFit está em fase piloto. O uso deve acontecer com dados adequados para teste e acompanhamento operacional.</p>
+      <p>Última atualização: 19 de setembro de 2026.</p>
+      <p>O PowerFit está em fase piloto e organiza dados de alunos, treinos, agenda e evolução para apoiar o trabalho de profissionais de educação física.</p>
       <p className="info-section-title">Dados coletados</p>
       <p>Podem ser registrados dados de conta, alunos, treinos, agenda, evolução, mídias de exercícios e informações de uso necessárias para operar o app.</p>
       <p className="info-section-title">Backend</p>
-      <p>O PowerFit usa Supabase como backend para autenticação, banco de dados e sincronização das informações do produto.</p>
+      <p>O PowerFit usa Supabase para autenticação, armazenamento e sincronização. O usuário deve manter sua senha em sigilo e utilizar o serviço apenas para finalidades legítimas.</p>
+      <p className="info-section-title">Responsabilidade profissional</p>
+      <p>O aplicativo é uma ferramenta de apoio e não substitui avaliação, diagnóstico ou orientação de profissionais habilitados.</p>
       <p className="info-section-title">Contato</p>
       <p>Dúvidas sobre uso, acesso ou dados podem ser enviadas pelo WhatsApp informado no site.</p>
     </LegalPage>
@@ -180,10 +171,12 @@ export function TermsPage() {
 export function PrivacyPage() {
   return (
     <LegalPage title="Privacidade">
-      <p>O PowerFit coleta dados fornecidos por personal trainers e alunos para permitir cadastro, criação de treinos, acompanhamento de agenda e histórico de evolução.</p>
+      <p>Última atualização: 19 de setembro de 2026.</p>
+      <p>O PowerFit trata dados fornecidos por personal trainers e alunos para permitir cadastro, criação de treinos, acompanhamento de agenda e histórico de evolução.</p>
       <p>Esses dados podem incluir nome, email, telefone, medidas, objetivos, anamnese, treinos, cargas, progresso, imagens ou links de apoio quando cadastrados.</p>
-      <p>O Supabase é usado como backend para armazenar e sincronizar essas informações. O produto está em fase piloto e o texto definitivo deve ser revisado antes de uso comercial amplo.</p>
-      <p>Para dúvidas sobre privacidade ou remoção de informações, entre em contato pelo WhatsApp informado no site.</p>
+      <p>Os dados são armazenados no Supabase e usados somente para operar o serviço. Não vendemos dados pessoais.</p>
+      <p className="info-section-title">Seus direitos</p>
+      <p>Você pode solicitar acesso, correção ou exclusão de seus dados. Para exercer esses direitos ou tirar dúvidas, use o WhatsApp informado no site.</p>
     </LegalPage>
   );
 }
@@ -191,10 +184,10 @@ export function PrivacyPage() {
 export function SecurityPage() {
   return (
     <LegalPage title="Segurança">
-      <p><ShieldCheck size={18} style={{ verticalAlign: 'text-bottom', marginRight: 8 }} />O PowerFit usa Supabase como backend para autenticação, banco de dados e controle de acesso.</p>
+      <p><ShieldCheck size={18} style={{ verticalAlign: 'text-bottom', marginRight: 8 }} />O PowerFit usa Supabase Auth para autenticação e políticas de acesso por usuário para separar os dados de cada personal e aluno.</p>
       <p>Dados coletados no piloto podem incluir conta, alunos, treinos, anamnese, evolução e mídias de exercício necessárias para uso do produto.</p>
-      <p>Como produto em fase piloto, acessos, permissões e regras de segurança devem ser revisados continuamente antes de uso com maior volume de dados.</p>
-      <p>Evite inserir dados sensíveis desnecessários. Dúvidas ou pedidos sobre segurança podem ser enviados pelo WhatsApp informado no site.</p>
+      <p>Senhas são processadas pelo provedor de autenticação e não ficam armazenadas nas tabelas do aplicativo.</p>
+      <p>Evite inserir dados sensíveis desnecessários. Dúvidas ou relatos de segurança podem ser enviados pelo WhatsApp informado no site.</p>
     </LegalPage>
   );
 }

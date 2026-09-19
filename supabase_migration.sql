@@ -1,5 +1,5 @@
 -- PowerFit deploy migration
--- Run this in Supabase SQL Editor before deploying the demo.
+-- Legacy structural migration. After this file, run supabase_auth_rls_migration.sql.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -42,11 +42,4 @@ ALTER TABLE public.weekly_schedules
   ADD COLUMN IF NOT EXISTS workout_id text,
   ADD COLUMN IF NOT EXISTS "createdAt" timestamp with time zone DEFAULT now();
 
-ALTER TABLE public.weekly_schedules ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_full_access_weekly_schedules" ON public.weekly_schedules;
-CREATE POLICY "anon_full_access_weekly_schedules"
-  ON public.weekly_schedules FOR ALL
-  TO anon, authenticated
-  USING (true)
-  WITH CHECK (true);
+-- Security policies are intentionally defined only in supabase_auth_rls_migration.sql.

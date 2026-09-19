@@ -17,18 +17,17 @@ export default class ErrorBoundary extends React.Component {
     this.setState({ errorInfo });
   }
 
-  handleReset = () => {
-    // Clear all local storage to reset state
-    localStorage.clear();
-    sessionStorage.clear();
-    // Unregister service workers as well
+  handleReset = async () => {
+    // Preserve user data; only reset application caches and the service worker.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        registrations.forEach(function(reg) { reg.unregister(); });
-      });
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(registration => registration.unregister()));
     }
-    // Reload page
-    window.location.href = '/';
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.filter(name => name.startsWith('powerfit-')).map(name => caches.delete(name)));
+    }
+    window.location.reload();
   }
 
   render() {
@@ -57,7 +56,7 @@ export default class ErrorBoundary extends React.Component {
                 width: '100%', marginBottom: '16px'
               }}
             >
-              🔄 Limpar Cache e Recarregar
+              🔄 Atualizar aplicativo
             </button>
             
             <details style={{ textAlign: 'left', marginTop: '16px', background: 'rgba(0,0,0,0.5)', padding: '12px', borderRadius: '8px' }}>

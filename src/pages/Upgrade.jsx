@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { activatePremium, activateStudentProDemo, isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
-import { useAuth, useToast } from '../lib/app-context';
+import { isStudentPremium, resolveStudentProfileFromCache } from '../lib/storage';
+import { useAuth } from '../lib/app-context';
 import { Crown, Sparkles, Shield, Bot, Target, FileText, Zap, ArrowLeft, Check } from 'lucide-react';
 
 const FEATURES = [
@@ -12,10 +11,8 @@ const FEATURES = [
 ];
 
 export default function Upgrade() {
-  const { user: currentUser, login: setCurrentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const navigate = useNavigate();
-  const addToast = useToast();
-  const [loading, setLoading] = useState(false);
 
   const resolvedUser = currentUser?.type === 'aluno' ? resolveStudentProfileFromCache(currentUser) : currentUser;
   const hasProAccess = currentUser?.type === 'aluno' && isStudentPremium(resolvedUser);
@@ -39,29 +36,6 @@ export default function Upgrade() {
     );
   }
 
-  const handleSubscribe = () => {
-    if (!currentUser) { navigate('/auth'); return; }
-    setLoading(true);
-    
-    const result = currentUser.type === 'aluno'
-      ? activateStudentProDemo(currentUser)
-      : activatePremium(currentUser.id || currentUser.email);
-    if (result && typeof result === 'object') {
-      // activatePremium returned updated user — update React state
-      setCurrentUser(result);
-      addToast?.('PRO demo ativado com sucesso!', 'success');
-      setTimeout(() => navigate(currentUser.type === 'aluno' ? '/aluno' : '/dashboard'), 500);
-    } else if (result === true) {
-      // Updated but wasn't current user
-      setCurrentUser(JSON.parse(localStorage.getItem('powerfit_current_user') || '{}'));
-      addToast?.('PRO demo ativado!', 'success');
-      setTimeout(() => navigate(currentUser.type === 'aluno' ? '/aluno' : '/dashboard'), 500);
-    } else {
-      addToast?.('Erro ao ativar PRO. Tente novamente.', 'error');
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={styles.container}>
       <div style={styles.card}>
@@ -76,7 +50,7 @@ export default function Upgrade() {
 
         {/* Price */}
         <div style={styles.priceBox}>
-          <div style={styles.demoPill}>Modo demonstração</div>
+          <div style={styles.demoPill}>Em breve</div>
           <span style={{ fontSize: '0.9rem', color: '#9ca3af' }}>por apenas</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', justifyContent: 'center' }}>
             <span style={{ fontSize: '1rem', color: '#9ca3af' }}>R$</span>
@@ -84,7 +58,7 @@ export default function Upgrade() {
             <span style={{ fontSize: '1.2rem', color: '#9ca3af' }}>,90</span>
             <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>/mês</span>
           </div>
-          <p style={styles.demoCopy}>Ativação simulada para validação. Pagamento real ainda não conectado.</p>
+          <p style={styles.demoCopy}>A contratação será liberada quando o checkout estiver conectado.</p>
         </div>
 
         {/* Features */}
@@ -104,26 +78,19 @@ export default function Upgrade() {
 
         {/* CTA */}
         <button
-          onClick={handleSubscribe}
-          disabled={loading}
+          disabled
           style={{
             ...styles.btnPrimary,
-            opacity: loading ? 0.7 : 1,
-            cursor: loading ? 'wait' : 'pointer',
+            opacity: 0.65,
+            cursor: 'not-allowed',
           }}
         >
-          {loading ? (
-            <span>Ativando...</span>
-          ) : (
-            <>
-              <Sparkles size={18} />
-              <span>Ativar PRO Demo</span>
-            </>
-          )}
+          <Sparkles size={18} />
+          <span>Indisponível no piloto</span>
         </button>
         
         <p style={{ color: '#4b5563', fontSize: '0.72rem', textAlign: 'center', marginTop: '8px' }}>
-          Ativacao local de demo, sem pagamento real
+          Nenhuma cobrança será realizada
         </p>
 
         {/* Back */}

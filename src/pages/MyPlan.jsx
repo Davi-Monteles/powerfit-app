@@ -71,8 +71,8 @@ export default function MyPlan() {
         if (addToast) addToast('Nao foi possivel abrir o checkout. Tente novamente.', 'error');
       }
     } catch (error) {
-      console.error('[MyPlan] Erro ao criar preferencia:', error);
-      if (addToast) addToast('Erro ao iniciar pagamento. Tente novamente.', 'error');
+      if (import.meta.env.DEV) console.error('[MyPlan] Erro ao criar preferencia:', error);
+      if (addToast) addToast(error.message || 'Pagamentos ainda não estão disponíveis.', 'info');
     } finally {
       setLoading(null);
     }
@@ -208,7 +208,7 @@ export default function MyPlan() {
           }}>
             <ShieldCheck color="#f97316" size={20} />
             <span style={{ fontSize: '0.82rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fdba74' }}>
-              Plano do aluno em modo demo — acesso PRO ativo por ativacao simulada
+              Acesso PRO do aluno ativo para este piloto
             </span>
           </div>
         )}
@@ -468,17 +468,17 @@ export default function MyPlan() {
           {user?.type === 'aluno' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', textAlign: 'center' }}>
               <ShieldCheck size={16} color="#22c55e" />
-              <span>Plano do aluno em modo demo; pagamento real ainda não conectado</span>
+              <span>Plano do aluno em fase piloto; pagamento real ainda não conectado</span>
             </div>
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
                 <ShieldCheck size={16} color="#22c55e" />
-                <span>Ambiente de demonstração; gateway de pagamento real não conectado</span>
+                <span>Ambiente piloto; gateway de pagamento ainda não conectado</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
                 <Lock size={14} />
-                <span>Não use dados reais de cartão nesta demo</span>
+                <span>Nenhum dado de cartão é solicitado neste piloto</span>
               </div>
             </>
           )}

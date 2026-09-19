@@ -387,8 +387,8 @@ function formatScheduleContext(scheduleEvents = []) {
 
 async function loadAIAgentContext(student, todayContext) {
   let resolvedStudent = student;
-  let targets = [];
-  let workouts = [];
+  let targets;
+  let workouts;
   let evolutionRows = [];
   let scheduleEvents = [];
 
@@ -722,11 +722,14 @@ Regras obrigatórias:
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('AI_AUTH_REQUIRED');
 
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
         message: userMessage,

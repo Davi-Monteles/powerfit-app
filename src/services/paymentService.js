@@ -6,12 +6,5 @@
  * @returns {Promise<{ init_point: string, id: string }>}
  */
 export async function createMercadoPagoPreference() {
-  const fallbackUrl =
-    'https://www.mercadopago.com.br/subscriptions#from-section=menu';
-
-  return {
-    init_point: fallbackUrl,
-    id: 'fallback_' + Date.now(),
-    isFallback: true,
-  };
+  throw new Error('Pagamentos ainda não estão habilitados neste piloto.');
 }

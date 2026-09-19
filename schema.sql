@@ -4,9 +4,9 @@
 CREATE TABLE public.users (
   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
   type text NOT NULL, -- 'master' ou 'personal'
+  auth_user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
   name text NOT NULL,
   email text NOT NULL UNIQUE,
-  password text NOT NULL, -- (Para uso futuro, idealmente usar o auth nativo do Supabase)
   "studentLimit" integer,
   "createdAt" timestamp with time zone DEFAULT now()
 );
@@ -14,6 +14,7 @@ CREATE TABLE public.users (
 -- 2. Table: students
 CREATE TABLE public.students (
   id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
+  auth_user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
   "personalId" uuid REFERENCES public.users(id),
   name text NOT NULL,
   email text NOT NULL,
@@ -29,7 +30,6 @@ CREATE TABLE public.students (
   "medicalNotes" text,
   target_muscles jsonb DEFAULT '[]'::jsonb,
   "isPremium" boolean DEFAULT false,
-  password text NOT NULL,
   "workoutIds" jsonb DEFAULT '[]'::jsonb,
   "workoutSchedule" jsonb DEFAULT '[]'::jsonb,
   "createdAt" timestamp with time zone DEFAULT now(),
