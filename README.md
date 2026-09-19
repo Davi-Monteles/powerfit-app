@@ -1,116 +1,55 @@
 # PowerFit
 
-Aplicação web para apoiar a rotina de personal trainers e alunos, reunindo cadastro, treinos, acompanhamento de evolução e agenda em uma única interface.
+Aplicação web para personal trainers e alunos, com gestão de alunos, treinos, agenda, evolução física e assistente de IA.
 
-O PowerFit foi desenvolvido como um piloto funcional remunerado para um cliente real. Este repositório apresenta a implementação frontend pública do projeto e uma demonstração navegável.
+## Desenvolvimento
 
-## Demonstração pública
-
-https://powerfit-app.vercel.app
-
-## Status do projeto
-
-- Piloto funcional remunerado.
-- Desenvolvido para um cliente real.
-- Demonstração pública disponível.
-- Não representa uma implantação operacional.
-- O código público atual representa principalmente a camada frontend e utiliza dados de demonstração no navegador.
-
-## Problema abordado
-
-A rotina de um personal trainer envolve informações distribuídas entre cadastros, fichas de treino, registros de evolução, agenda e mensagens. O PowerFit explora uma interface centralizada para organizar essas atividades e oferecer uma experiência separada para personal e aluno.
-
-## Funcionalidades comprovadas na versão pública
-
-### Área do personal trainer
-
-- Cadastro, edição, busca e organização de alunos.
-- Criação e edição de treinos com exercícios, séries, repetições, carga e descanso.
-- Associação de treinos aos alunos cadastrados.
-- Geração de fichas de treino em PDF.
-- Compartilhamento de treino por meio de link para WhatsApp.
-- Registro de medidas e acompanhamento de evolução física.
-- Visualização da evolução em gráficos.
-- Agenda mensal com eventos vinculados a alunos.
-- Dashboard com indicadores e atalhos para as áreas principais.
-
-### Área do aluno
-
-- Visualização dos treinos atribuídos pelo personal.
-- Consulta de métricas físicas e histórico de evolução.
-- Cálculos demonstrativos de IMC, taxa metabólica basal e estimativa calórica.
-- Módulo demonstrativo de insights de treino calculados localmente.
-
-## Implementação pública
-
-A versão disponível neste repositório foi construída com:
-
-- React 19.
-- JavaScript e JSX.
-- Vite.
-- React Router.
-- Recharts para visualizações.
-- jsPDF e jsPDF-AutoTable para geração de documentos.
-- Lucide React para ícones.
-- CSS próprio e interface responsiva.
-- Local Storage para persistência dos dados de demonstração.
-
-### Supabase e PostgreSQL
-
-A modelagem de dados e o trabalho de integração com Supabase/PostgreSQL fizeram parte do desenvolvimento do projeto. O repositório inclui um esquema SQL representativo com tabelas e políticas de Row Level Security.
-
-Essa camada não está integralmente conectada à demonstração pública atual. A versão publicada utiliza armazenamento local no navegador para permitir avaliação independente sem acesso a banco, credenciais ou dados do cliente.
-
-## Arquitetura da versão pública
-
-```text
-src/
-├── components/   Componentes compartilhados da interface
-├── lib/          Persistência local, cálculos e geração de PDF
-├── pages/        Áreas do personal e do aluno
-├── App.jsx       Rotas, contextos e controle de acesso demonstrativo
-└── main.jsx      Inicialização da aplicação
-
-supabase_schema.sql  Modelo relacional e políticas RLS do projeto
-```
-
-## Executando localmente
-
-### Requisitos
-
-- Node.js compatível com o Vite 8.
-- npm.
-
-### Instalação
+Requisitos: Node.js 20.19+ (ou 22.12+) e um projeto Supabase.
 
 ```bash
-git clone https://github.com/Davi-Monteles/powerfit-app.git
-cd powerfit-app
 npm install
 npm run dev
 ```
 
-O Vite informará no terminal o endereço local da aplicação.
+Copie `.env.example` para `.env.local` e informe as credenciais públicas do Supabase. `GROQ_API_KEY` é segredo do servidor e deve ser configurado apenas no ambiente de deploy.
 
-### Build otimizado
+O modo de demonstração é opcional e só deve ser habilitado em preview ou desenvolvimento:
 
-```bash
-npm run build
-npm run preview
+```env
+VITE_ENABLE_DEMO_MODE=true
 ```
 
-## Limitações da demonstração
+Nunca habilite essa variável no domínio de produção.
 
-- Os dados da versão pública ficam armazenados no navegador.
-- A autenticação da demonstração não representa uma autenticação operacional completa.
-- A integração completa com Supabase/PostgreSQL não está habilitada no frontend público.
-- O módulo de insights funciona localmente e não deve ser interpretado como aconselhamento médico ou profissional.
-- Nenhum dado real do cliente é necessário para executar a demonstração.
+## Banco e autenticação
 
-## Autor
+Antes do primeiro deploy desta versão, execute `supabase_auth_rls_migration.sql` no SQL Editor do Supabase. A migração:
 
-Davi Monteles — Desenvolvedor Full-Stack Júnior
+- vincula perfis ao Supabase Auth;
+- remove senhas em texto puro das tabelas de perfil;
+- ativa RLS com acesso por usuário e por personal responsável;
+- cria o fluxo de perfil após cadastro;
+- preserva os dados existentes sempre que houver e-mail correspondente.
 
-- Portfólio: https://davimonteles.vercel.app
-- GitHub: https://github.com/Davi-Monteles
-- LinkedIn: https://www.linkedin.com/in/davi-monteles-9888333a8/
+Depois da migração, usuários antigos que ainda não tenham uma conta no Supabase Auth devem cadastrar a mesma conta de e-mail ou usar “Esqueci minha senha”.
+
+## Verificação de entrega
+
+```bash
+npm run check
+npm audit
+```
+
+O pagamento automático está desabilitado de forma segura nesta versão. Os planos são apresentados como piloto e a ativação deve ser feita pelo responsável até existir uma integração de pagamento validada no servidor.
+
+## Deploy
+
+Configure no provedor:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `GROQ_API_KEY` (somente servidor)
+
+Revise também no Supabase Auth a URL pública e as URLs permitidas de redirecionamento, incluindo `/reset-password`.

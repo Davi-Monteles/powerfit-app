@@ -1,56 +1,121 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent } from '../lib/storage';
-import { useToast } from '../App';
-import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History, Crown } from 'lucide-react';
+import { getStudents, saveStudent, deleteStudent, getWorkouts, assignWorkoutToStudent, canAddStudent, saveNotification, forceSyncData, hasActiveWorkoutsForStudent } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
+import { useToast, useAuth } from '../lib/app-context';
+import { Users, Plus, Search, Edit2, Trash2, X, Dumbbell, Phone, Mail, Calendar, Target, History, Bell } from 'lucide-react';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Students() {
-  const [students, setStudents] = useState([]);
-  const [workouts, setWorkouts] = useState([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [assigningStudent, setAssigningStudent] = useState(null);
+  const [pendingAssignWorkoutId, setPendingAssignWorkoutId] = useState(null);
+  const [assignDay, setAssignDay] = useState('Segunda');
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '' });
   const addToast = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  useStorageSync('students');
 
-  const emptyForm = { name: '', email: '', phone: '', birthDate: '', gender: 'Masculino', height: '', weight: '', objective: 'Hipertrofia', daysPerWeek: 3, shift: 'Manhã', tier: 'free', address: '', medicalNotes: '' };
+  const emptyForm = { name: '', email: '', phone: '', birthDate: '', gender: 'Masculino', height: '', weight: '', objective: 'Hipertrofia', daysPerWeek: 3, shift: 'Manhã', address: '', medicalNotes: '' };
   const [form, setForm] = useState(emptyForm);
 
+  const students = getStudents();
+  const workouts = getWorkouts();
+
   useEffect(() => {
-    setStudents(getStudents());
-    setWorkouts(getWorkouts());
-  }, []);
+    forceSyncData().catch(() => {});
+  }, [user]);
 
-  const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = students.filter(s => (s.name || '').toLowerCase().includes((search || '').toLowerCase()) || (s.email || '').toLowerCase().includes((search || '').toLowerCase()));
+  const officialWorkoutIds = new Set(workouts.map(w => w.id));
+  const getOfficialWorkoutCount = (student) => {
+    const activeSchedule = Array.isArray(student.workoutSchedule)
+      ? student.workoutSchedule.filter(schedule => schedule?.status !== 'archived')
+      : [];
 
-  const openNew = () => { setForm(emptyForm); setEditingStudent(null); setShowModal(true); };
-  const openEdit = (student) => { setForm(student); setEditingStudent(student); setShowModal(true); };
-  
-  const handleSave = (e) => {
-    e.preventDefault();
-    if (!form.name) { addToast('Nome é obrigatório', 'error'); return; }
-    saveStudent(form);
-    setStudents(getStudents());
-    setShowModal(false);
-    addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
+    if (activeSchedule.length > 0) {
+      return activeSchedule.filter(schedule => officialWorkoutIds.has(schedule.workoutId || schedule.workout_id)).length;
+    }
+
+    return Array.isArray(student.workoutIds)
+      ? student.workoutIds.filter(id => officialWorkoutIds.has(id)).length
+      : 0;
   };
 
-  const handleDelete = (id) => {
-    if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
+  const openNew = () => { 
+    if (!canAddStudent()) {
+      addToast('Limite de alunos do seu plano atingido. Faça upgrade em "Meu Plano".', 'error');
+      return;
+    }
+    setForm(emptyForm); 
+    setEditingStudent(null); 
+    setShowModal(true); 
+  };
+  const openEdit = (student) => { setForm(student); setEditingStudent(student); setShowModal(true); };
+  
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.name) { addToast('Nome é obrigatório', 'error'); return; }
+    
+    try {
+      const payload = { ...form, personalId: user?.id || form.personalId };
+      await saveStudent(payload);
+      
+      setShowModal(false);
+      addToast(editingStudent ? 'Aluno atualizado!' : 'Aluno cadastrado!', 'success');
+    } catch (err) {
+      addToast(err.message || "Erro ao salvar aluno.", 'error');
+      console.error("🔥 UI SAVE ERROR:", err);
+    }
+  };
+
+  const handleDelete = (id, name) => {
+    setConfirmDelete({ open: true, id, name: name || 'este aluno' });
+  };
+
+  const confirmDeleteStudent = () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     deleteStudent(id);
-    setStudents(getStudents());
+    setConfirmDelete({ open: false, id: null, name: '' });
     addToast('Aluno excluído', 'info');
   };
 
-  const openAssign = (student) => { setAssigningStudent(student); setShowAssignModal(true); };
+  const openAssign = (student) => {
+    setAssigningStudent(student);
+    setPendingAssignWorkoutId(null);
+    setShowAssignModal(true);
+  };
   
-  const handleAssign = (workoutId) => {
-    assignWorkoutToStudent(workoutId, assigningStudent.id);
-    setStudents(getStudents());
+  const handleAssign = async (workoutId, archiveActive = false) => {
+    await assignWorkoutToStudent(workoutId, assigningStudent.id, assignDay, false, { archiveActive });
     setShowAssignModal(false);
-    addToast('Treino atribuído ao aluno!', 'success');
+    setPendingAssignWorkoutId(null);
+    addToast(`Treino atribuído para ${assignDay}!`, 'success');
+  };
+
+  const chooseWorkoutToAssign = (workoutId) => {
+    if (hasActiveWorkoutsForStudent(assigningStudent)) {
+      setPendingAssignWorkoutId(workoutId);
+      return;
+    }
+
+    handleAssign(workoutId);
+  };
+
+  const handleWhatsAppChat = (phone) => {
+    if (!phone) return addToast('Aluno sem telefone cadastrado', 'error');
+    window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
+  };
+
+  const sendReminder = (student) => {
+    const message = "Você tem um novo lembrete de treino do seu Personal! Bora pra cima! 💪";
+    saveNotification(student.id || student.studentId, message);
+    addToast("Lembrete interno enviado com sucesso!", "success");
   };
 
   return (
@@ -80,11 +145,11 @@ export default function Students() {
               <div className="student-card-header">
                 <div className="student-avatar">{student.name.charAt(0).toUpperCase()}</div>
                 <div>
-                  <h4 style={{ fontSize: '1rem' }}>{student.name}</h4>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    <span className="badge badge-primary">{student.objective || 'Sem objetivo'}</span>
-                    {student.tier === 'premium' && <span className="badge" style={{ background: 'linear-gradient(135deg, #FF6B35, #F59E0B)', color: 'white' }}><Crown size={10} style={{ marginRight: '3px' }} />Premium</span>}
-                  </div>
+                  <h4 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {student.name}
+                    {student.isPremium && <span style={{ fontSize: '0.7rem', background: 'var(--primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '2px' }}>⭐ PRO</span>}
+                  </h4>
+                  <span className="badge badge-primary">{student.objective || 'Sem objetivo'}</span>
                 </div>
               </div>
               <div className="student-details">
@@ -92,13 +157,16 @@ export default function Students() {
                 {student.phone && <div className="student-detail"><Phone size={14} /> {student.phone}</div>}
                 {student.birthDate && <div className="student-detail"><Calendar size={14} /> {new Date(student.birthDate).toLocaleDateString('pt-BR')}</div>}
                 {student.objective && <div className="student-detail"><Target size={14} /> {student.objective}</div>}
-                <div className="student-detail"><Dumbbell size={14} /> {student.workoutIds?.length || 0} treino(s)</div>
+                <div className="student-detail"><Dumbbell size={14} /> {getOfficialWorkoutCount(student)} treino(s)</div>
               </div>
               <div className="student-actions">
                 <button className="btn btn-secondary btn-sm" onClick={() => openAssign(student)}><Dumbbell size={14} /> Atribuir Treino</button>
                 <button className="btn btn-outline btn-sm" onClick={() => navigate(`/history/${student.id}`)}><History size={14} /> Histórico</button>
-                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)}><Edit2 size={16} /></button>
-                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id)} style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                <div style={{ flex: 1 }} />
+                <button className="btn btn-ghost btn-icon" onClick={() => sendReminder(student)} title="Enviar Lembrete" style={{ color: '#06b6d4' }}><Bell size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => handleWhatsAppChat(student.phone)} title="Falar no WhatsApp" style={{ color: '#25D366' }}><Phone size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(student)} title="Editar"><Edit2 size={16} /></button>
+                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(student.id, student.name)} title="Excluir" style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
               </div>
             </div>
           ))}
@@ -122,8 +190,12 @@ export default function Students() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label className="form-label">Email</label>
-                    <input type="email" className="form-input" placeholder="email@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    <input type="email" className="form-input" placeholder="alunovip@email.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                    <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      💡 Se o aluno já tiver conta, o sistema irá vincular automaticamente.
+                    </p>
                   </div>
+
                   <div className="form-group">
                     <label className="form-label">Telefone</label>
                     <input className="form-input" placeholder="(00) 00000-0000" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
@@ -178,14 +250,6 @@ export default function Students() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Plano do Aluno</label>
-                  <div className="tag-group">
-                    {[{v: 'free', l: '🆓 Free'}, {v: 'premium', l: '⭐ Premium'}].map(t => (
-                      <button type="button" key={t.v} className={`tag ${form.tier === t.v ? 'active' : ''}`} onClick={() => setForm({...form, tier: t.v})}>{t.l}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="form-group">
                   <label className="form-label">Observações Médicas</label>
                   <textarea className="form-textarea" placeholder="Lesões, restrições, medicamentos..." value={form.medicalNotes || ''} onChange={e => setForm({...form, medicalNotes: e.target.value})} style={{ minHeight: '70px' }} />
                 </div>
@@ -201,15 +265,39 @@ export default function Students() {
 
       {/* Assign Workout Modal */}
       {showAssignModal && (
-        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowAssignModal(false); setPendingAssignWorkoutId(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h3>Atribuir Treino</h3>
-              <button className="modal-close" onClick={() => setShowAssignModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setShowAssignModal(false); setPendingAssignWorkoutId(null); }}><X size={20} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
-              Selecione um treino para <strong>{assigningStudent?.name}</strong>:
+              Selecione um treino e dia da semana para <strong>{assigningStudent?.name}</strong>:
             </p>
+            {pendingAssignWorkoutId && (
+              <div className="card" style={{ padding: '14px', marginBottom: '16px', border: '1px solid rgba(245, 158, 11, 0.35)', background: 'rgba(245, 158, 11, 0.08)' }}>
+                <strong style={{ color: '#f59e0b', display: 'block', marginBottom: '6px' }}>Este aluno já possui treinos ativos.</strong>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '12px' }}>
+                  Escolha se deseja substituir os treinos anteriores ou manter tudo ativo.
+                </p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleAssign(pendingAssignWorkoutId, true)}>Substituir treinos anteriores</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => handleAssign(pendingAssignWorkoutId, false)}>Adicionar aos treinos existentes</button>
+                </div>
+              </div>
+            )}
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label className="form-label">Dia da Semana</label>
+              <select className="form-select" value={assignDay} onChange={(e) => setAssignDay(e.target.value)}>
+                <option value="Segunda">Segunda-feira</option>
+                <option value="Terça">Terça-feira</option>
+                <option value="Quarta">Quarta-feira</option>
+                <option value="Quinta">Quinta-feira</option>
+                <option value="Sexta">Sexta-feira</option>
+                <option value="Sábado">Sábado</option>
+                <option value="Domingo">Domingo</option>
+              </select>
+            </div>
             {workouts.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
                 Nenhum treino criado ainda. Crie um treino primeiro!
@@ -217,7 +305,7 @@ export default function Students() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {workouts.map(w => (
-                  <button key={w.id} className="card" style={{ cursor: 'pointer', textAlign: 'left', padding: '14px 18px' }} onClick={() => handleAssign(w.id)}>
+                  <button key={w.id} className="card" style={{ cursor: 'pointer', textAlign: 'left', padding: '14px 18px' }} onClick={() => chooseWorkoutToAssign(w.id)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <Dumbbell size={20} style={{ color: 'var(--primary)' }} />
                       <div>
@@ -233,19 +321,41 @@ export default function Students() {
         </div>
       )}
 
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, name: '' })}
+        onConfirm={confirmDeleteStudent}
+        title="Excluir aluno"
+        message={`Tem certeza que deseja excluir ${confirmDelete.name}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
+
       <style>{`
         .students-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
           gap: 16px;
         }
         
-        .student-card { display: flex; flex-direction: column; gap: 14px; }
+        .student-card { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 100%; }
         
         .student-card-header {
           display: flex;
           align-items: center;
           gap: 12px;
+          min-width: 0;
+        }
+
+        .student-card-header > div:last-child {
+          min-width: 0;
+        }
+
+        .student-card-header h4 {
+          flex-wrap: wrap;
+          overflow-wrap: anywhere;
         }
         
         .student-avatar {
@@ -266,6 +376,7 @@ export default function Students() {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          min-width: 0;
         }
         
         .student-detail {
@@ -274,19 +385,31 @@ export default function Students() {
           gap: 8px;
           font-size: 0.8rem;
           color: var(--text-secondary);
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
         
         .student-detail svg { color: var(--text-muted); flex-shrink: 0; }
         
         .student-actions {
           display: flex;
+          flex-wrap: wrap;
           gap: 8px;
           padding-top: 12px;
           border-top: 1px solid var(--border);
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .student-actions .btn-sm {
+          min-width: 0;
         }
 
         @media (max-width: 768px) {
-          .students-grid { grid-template-columns: 1fr; }
+          .students-grid { grid-template-columns: minmax(0, 1fr); }
+          .student-actions .btn-sm { flex: 1 1 140px; white-space: normal; }
+          .student-actions .btn-icon { flex: 0 0 36px; }
+          .student-actions > div { display: none; }
         }
       `}</style>
     </div>

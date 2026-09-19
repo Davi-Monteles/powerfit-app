@@ -1,24 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getStudentById, getWorkouts, getEvolutionByStudent, calculateIMC, calculateTMB, calculateCalories } from '../lib/storage';
 import { History, ArrowLeft, Dumbbell, TrendingUp, Scale, Activity, Heart, Flame } from 'lucide-react';
 
 export default function StudentHistory() {
   const { studentId } = useParams();
-  const [student, setStudent] = useState(null);
-  const [workouts, setWorkouts] = useState([]);
-  const [evolution, setEvolution] = useState([]);
+  const [now] = useState(() => Date.now());
 
-  useEffect(() => {
-    const s = getStudentById(studentId);
-    setStudent(s);
-    if (s) {
-      const allWorkouts = getWorkouts();
-      const studentWorkouts = allWorkouts.filter(w => s.workoutIds?.includes(w.id));
-      setWorkouts(studentWorkouts);
-      setEvolution(getEvolutionByStudent(studentId));
-    }
-  }, [studentId]);
+  const student = useMemo(() => getStudentById(studentId), [studentId]);
+  const workouts = useMemo(() => {
+    if (!student) return [];
+    return getWorkouts().filter(w => student.workoutIds?.includes(w.id));
+  }, [student]);
+  const evolution = useMemo(() => getEvolutionByStudent(studentId), [studentId]);
 
   if (!student) return <div className="page-container"><p>Aluno não encontrado</p></div>;
 
@@ -30,7 +24,7 @@ export default function StudentHistory() {
   let age = null;
   if (student.birthDate) {
     const bd = new Date(student.birthDate);
-    age = Math.floor((Date.now() - bd.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    age = Math.floor((now - bd.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
   }
 
   const imc = calculateIMC(weight, height);

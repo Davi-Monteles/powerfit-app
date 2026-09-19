@@ -1,50 +1,231 @@
 import { useState, useEffect } from 'react';
-import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp } from '../lib/storage';
+import { getWorkouts, saveWorkout, deleteWorkout, getStudents, sendWorkoutViaWhatsApp, forceSyncData, isStudentAIWorkout, fetchWorkoutsForStudent } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
 import { generateWorkoutPDF } from '../lib/pdf';
-import { useToast } from '../App';
+import { useAuth, useToast } from '../lib/app-context';
 import { Dumbbell, Plus, Search, Edit2, Trash2, X, Send, GripVertical, MessageCircle, FileDown } from 'lucide-react';
+import ExerciseMedia from '../components/ExerciseMedia';
+import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
+import { getWorkoutCompletion, markWorkoutCompleted, markWorkoutPending } from '../lib/workout-completions';
+import { getExerciseProgress, getAllProgressForWorkout, saveProgress, toggleExercise, isWorkoutFullyCompleted } from '../lib/exercise-progress';
+import { canStudentDeleteAIWorkout, getExerciseImageFrames, getWorkoutExerciseImageUrls, normalizeWorkoutExerciseMediaFields, validateWorkoutExerciseMediaUrls } from '../lib/workout-exercise-media';
 
-const exerciseCategories = ['Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps', 'Perna', 'Glúteo', 'Abdômen', 'Cardio', 'Funcional'];
+function isBrowserOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function cacheExerciseImagesForOffline(imageUrls) {
+  if (!imageUrls.length || typeof navigator === 'undefined' || isBrowserOffline() || !('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.ready
+    .then(registration => {
+      registration.active?.postMessage({ type: 'CACHE_EXERCISE_IMAGES', urls: imageUrls });
+    })
+    .catch(() => undefined);
+}
+
+function ExerciseCustomMedia({ exercise, isOffline }) {
+  const [failedImageState, setFailedImageState] = useState({ key: '', urls: [] });
+  const imageFrames = getExerciseImageFrames(exercise);
+  const imageFrameKey = imageFrames.join('\n');
+  const failedImages = failedImageState.key === imageFrameKey ? failedImageState.urls : [];
+  const availableFrames = imageFrames.filter(url => !failedImages.includes(url));
+  const imageUrl = availableFrames[0] || '';
+  const hasAnimatedFrames = availableFrames.length === 2;
+  const videoUrl = String(exercise?.videoUrl || '').trim();
+  const videoLabel = isOffline ? 'Ver vídeo disponível com internet' : 'Ver vídeo';
+
+  const markImageFailed = (url) => {
+    setFailedImageState(prev => {
+      const urls = prev.key === imageFrameKey ? prev.urls : [];
+      return urls.includes(url) ? prev : { key: imageFrameKey, urls: [...urls, url] };
+    });
+  };
+
+  if (!imageUrl && !videoUrl) return null;
+
+  return (
+    <div className="exercise-custom-media">
+      {imageFrames.length > 0 && (imageUrl ? (
+        hasAnimatedFrames ? (
+          <span className="exercise-frame-animation" role="img" aria-label={`Demonstração em 2 frames de ${exercise?.name || 'exercicio'}`}>
+            <img
+              className="exercise-custom-image exercise-frame-image exercise-frame-start"
+              src={availableFrames[0]}
+              alt={`Inicio do movimento de ${exercise?.name || 'exercicio'}`}
+              loading="lazy"
+              onError={() => markImageFailed(availableFrames[0])}
+            />
+            <img
+              className="exercise-custom-image exercise-frame-image exercise-frame-end"
+              src={availableFrames[1]}
+              alt={`Fim do movimento de ${exercise?.name || 'exercicio'}`}
+              loading="lazy"
+              onError={() => markImageFailed(availableFrames[1])}
+            />
+          </span>
+        ) : (
+          <img
+            className="exercise-custom-image"
+            src={imageUrl}
+            alt={`Imagem de ${exercise?.name || 'exercicio'}`}
+            loading="lazy"
+            onError={() => markImageFailed(imageUrl)}
+          />
+        )
+      ) : (
+        <span className="exercise-image-fallback">Imagem indisponivel</span>
+      ))}
+      {videoUrl && (
+        <a
+          className={`exercise-video-link${isOffline ? ' exercise-video-link-offline' : ''}`}
+          href={videoUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-disabled={isOffline ? 'true' : undefined}
+          aria-label={videoLabel}
+          onClick={isOffline ? event => event.preventDefault() : undefined}
+        >
+          {isOffline ? 'Ver video (com internet)' : 'Ver video'}
+        </a>
+      )}
+    </div>
+  );
+}
 
 export default function Workouts() {
-  const [workouts, setWorkouts] = useState([]);
-  const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, name: '', source: null });
+  const [pdfAlert, setPdfAlert] = useState({ open: false, message: '' });
+  const { user } = useAuth();
   const addToast = useToast();
+  useStorageSync('workouts');
+  const { refresh: refreshCompletions } = useStorageSync('workout-completions');
+  const { refresh: refreshProgress } = useStorageSync('exercise-progress');
+  const isStudentView = user?.type === 'aluno';
+  const [freshStudentWorkouts, setFreshStudentWorkouts] = useState(null);
+  const [isOffline, setIsOffline] = useState(isBrowserOffline);
 
-  const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '' };
+  const emptyExercise = { name: '', sets: 3, reps: 12, weight: '', rest: 60, notes: '', videoUrl: '', imageUrl: '' };
   const emptyForm = { name: '', description: '', category: 'Musculação', exercises: [{ ...emptyExercise }] };
   const [form, setForm] = useState(emptyForm);
 
+  const allWorkouts = getWorkouts();
+  const cachedWorkouts = user?.type === 'personal'
+    ? allWorkouts.filter(workout => !isStudentAIWorkout(workout))
+    : allWorkouts;
+  const students = getStudents();
+  const workouts = isStudentView && freshStudentWorkouts ? freshStudentWorkouts : cachedWorkouts;
+
   useEffect(() => {
-    setWorkouts(getWorkouts());
-    setStudents(getStudents());
+    let active = true;
+    const loadFreshData = async () => {
+      try {
+        if (user?.type === 'aluno') {
+          const studentId = user.studentId || user.student_id || user.id;
+          const freshWorkouts = await fetchWorkoutsForStudent(studentId, user.personalId || user.personal_id, user.email);
+          if (active) {
+            setFreshStudentWorkouts(freshWorkouts);
+          }
+          return;
+        }
+
+        await forceSyncData();
+      } catch (error) {
+        if (import.meta.env.DEV) console.warn('[Workouts] Student workouts sync warning:', error);
+        if (active) setFreshStudentWorkouts(null);
+      }
+    };
+
+    loadFreshData();
+    return () => { active = false; };
+  }, [user?.id, user?.type, user?.studentId, user?.student_id, user?.personalId, user?.personal_id, user?.email]);
+
+  const filtered = workouts.filter(w => (w.name || '').toLowerCase().includes(search.toLowerCase()));
+  const activeFiltered = isStudentView ? filtered.filter(w => w.status !== 'archived') : filtered;
+  const archivedFiltered = isStudentView ? filtered.filter(w => w.status === 'archived') : [];
+  const exerciseImageCacheKey = getWorkoutExerciseImageUrls(activeFiltered).join('\n');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
-  const filtered = workouts.filter(w => w.name.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    if (isOffline || !exerciseImageCacheKey) return;
+    cacheExerciseImagesForOffline(exerciseImageCacheKey.split('\n'));
+  }, [exerciseImageCacheKey, isOffline]);
 
-  const openNew = () => { setForm(emptyForm); setEditingWorkout(null); setShowModal(true); };
-  const openEdit = (workout) => { setForm({ ...workout }); setEditingWorkout(workout); setShowModal(true); };
+  const openNew = () => {
+    if (isStudentView) return;
+    setForm(emptyForm);
+    setEditingWorkout(null);
+    setShowModal(true);
+  };
+  const openEdit = (workout) => {
+    if (isStudentView) return;
+    setForm({ ...workout });
+    setEditingWorkout(workout);
+    setShowModal(true);
+  };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    if (isStudentView) return;
     if (!form.name) { addToast('Nome do treino é obrigatório', 'error'); return; }
     if (form.exercises.some(ex => !ex.name)) { addToast('Preencha o nome de todos os exercícios', 'error'); return; }
-    saveWorkout(form);
-    setWorkouts(getWorkouts());
+    const exercises = form.exercises.map(normalizeWorkoutExerciseMediaFields);
+    const mediaValidation = validateWorkoutExerciseMediaUrls(exercises);
+    if (!mediaValidation.valid) { addToast(mediaValidation.message, 'error'); return; }
+    await saveWorkout({ ...form, exercises });
+    await forceSyncData();
     setShowModal(false);
     addToast(editingWorkout ? 'Treino atualizado!' : 'Treino criado!', 'success');
   };
 
-  const handleDelete = (id) => {
-    if (!confirm('Tem certeza que deseja excluir este treino?')) return;
-    deleteWorkout(id);
-    setWorkouts(getWorkouts());
-    addToast('Treino excluído', 'info');
+  const handleDelete = (workoutOrId) => {
+    const workout = typeof workoutOrId === 'object' ? workoutOrId : workouts.find(item => item.id === workoutOrId);
+
+    if (user?.type === 'aluno' && !canStudentDeleteAIWorkout(workout)) {
+      addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
+      return;
+    }
+
+    const id = workout?.id || workoutOrId;
+
+    setConfirmDelete({ open: true, id, name: workout?.name || 'este treino', source: workout?.source || null });
+  };
+
+  const confirmDeleteWorkout = async () => {
+    const { id, source } = confirmDelete;
+    if (!id) return;
+
+    if (isStudentView) {
+      const workout = workouts.find(item => item.id === id) || { source };
+      if (!canStudentDeleteAIWorkout(workout)) {
+        setConfirmDelete({ open: false, id: null, name: '', source: null });
+        addToast('Alunos nao podem excluir treinos compartilhados.', 'error');
+        return;
+      }
+    }
+
+    await deleteWorkout(id);
+    setConfirmDelete({ open: false, id: null, name: '', source: null });
+    if (isStudentView) setFreshStudentWorkouts(previous => previous?.filter(workout => workout.id !== id) || previous);
+    if (!isStudentView) await forceSyncData();
+    addToast('Treino excluido', 'info');
   };
 
   const addExercise = () => {
@@ -77,41 +258,108 @@ export default function Workouts() {
     addToast(`Treino enviado para ${student.name} via WhatsApp!`, 'success');
   };
 
+  const handleTogglePublishedWorkout = (workout) => {
+    if (!isStudentView || workout?.source !== 'rascunho_anamnese') return;
+    const completion = getWorkoutCompletion(user, workout.id);
+    if (completion?.status === 'completed') {
+      markWorkoutPending(user, workout);
+      addToast('Treino marcado como pendente.', 'info');
+    } else {
+      markWorkoutCompleted(user, workout);
+      addToast('Treino marcado como concluido.', 'success');
+    }
+    refreshCompletions();
+  };
+
+  const handleToggleExercise = (workout, exerciseIndex) => {
+    if (!isStudentView) return;
+    toggleExercise(user, workout, exerciseIndex);
+    refreshProgress();
+
+    const allDone = isWorkoutFullyCompleted(user, workout);
+    const completion = getWorkoutCompletion(user, workout.id);
+    const wasCompleted = workout.status === 'completed' || completion?.status === 'completed';
+
+    if (allDone && !wasCompleted) {
+      markWorkoutCompleted(user, workout);
+      refreshCompletions();
+      addToast('Treino concluído!', 'success');
+    } else if (!allDone && wasCompleted) {
+      markWorkoutPending(user, workout);
+      refreshCompletions();
+    }
+  };
+
+  const handleExerciseWeightChange = (workout, exerciseIndex, value) => {
+    if (!isStudentView) return;
+    saveProgress(user, workout, exerciseIndex, { actualWeight: value });
+    refreshProgress();
+  };
+
+  const renderPDFButton = (workout) => (
+    <button className="btn btn-secondary btn-sm" onClick={() => {
+      try {
+        generateWorkoutPDF(workout);
+        addToast('PDF gerado!', 'success');
+      } catch (err) {
+        console.warn('PDF Error, fallback to alert', err);
+        setPdfAlert({ open: true, message: 'Relatório gerado (modo demo offline)' });
+      }
+    }}>
+      <FileDown size={14} /> PDF
+    </button>
+  );
+
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
-        <h2><Dumbbell size={24} style={{ color: 'var(--primary)' }} /> Treinos</h2>
+        <h2><Dumbbell size={24} style={{ color: 'var(--primary)' }} /> {isStudentView ? 'Meus Treinos' : 'Treinos'}</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="search-bar">
             <Search />
             <input className="form-input" placeholder="Buscar treino..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Novo Treino</button>
+          {!isStudentView && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Novo Treino</button>}
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {activeFiltered.length === 0 ? (
         <div className="empty-state">
           <Dumbbell size={64} />
           <h3>Nenhum treino encontrado</h3>
-          <p>{search ? 'Tente outro termo de busca' : 'Clique em "Novo Treino" para criar'}</p>
-          {!search && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Criar Treino</button>}
+          <p>{search ? 'Tente outro termo de busca' : isStudentView ? (archivedFiltered.length > 0 ? 'Você não possui treinos ativos no momento.' : 'Seu personal ainda não atribuiu treinos para você.') : 'Clique em "Novo Treino" para criar'}</p>
+          {!search && !isStudentView && <button className="btn btn-primary" onClick={openNew}><Plus size={18} /> Criar Treino</button>}
         </div>
       ) : (
         <div className="workouts-grid">
-          {filtered.map(workout => (
-            <div key={workout.id} className="card card-glow workout-card">
+          {activeFiltered.map(workout => {
+            const completion = isStudentView ? getWorkoutCompletion(user, workout.id) : null;
+            const isCompleted = workout.status === 'completed' || completion?.status === 'completed';
+            const workoutProgressAll = !isStudentView ? getAllProgressForWorkout(workout.id) : [];
+            const canDeleteStudentAI = isStudentView && canStudentDeleteAIWorkout(workout);
+            return (
+            <div key={workout.scheduleId || workout.id} className="card card-glow workout-card">
               <div className="workout-header">
                 <div>
                   <h4 style={{ fontSize: '1.05rem', marginBottom: '4px' }}>{workout.name}</h4>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{workout.description}</p>
                 </div>
-                <span className="badge badge-secondary">{workout.category}</span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {workout.source === 'rascunho_anamnese' && <span className="badge badge-success">Publicado</span>}
+                  {isStudentView && workout.source === 'rascunho_anamnese' && isCompleted && <span className="badge badge-primary">Concluído</span>}
+                  <span className="badge badge-secondary">{workout.category}</span>
+                </div>
               </div>
 
               <div className="workout-exercises">
-                {workout.exercises?.map((ex, i) => (
+                {workout.exercises?.map((ex, i) => {
+                  const exProgress = isStudentView ? getExerciseProgress(user, workout.id, i) : null;
+                  const personalRecord = !isStudentView
+                    ? workoutProgressAll.find(p => p.exerciseIndex === i)
+                    : null;
+                  return (
                   <div key={i} className="workout-exercise">
+                    <ExerciseMedia exercise={ex} />
                     <span className="exercise-number">{i + 1}</span>
                     <div className="exercise-info">
                       <strong>{ex.name}</strong>
@@ -120,33 +368,115 @@ export default function Workouts() {
                         {ex.weight ? ` • ${ex.weight}kg` : ''}
                         {ex.rest ? ` • ${ex.rest}s` : ''}
                       </span>
+                      {!isStudentView && personalRecord?.actualWeight && (
+                        <span className="exercise-recorded-weight">Carga registrada: {personalRecord.actualWeight}kg</span>
+                      )}
+                      <ExerciseCustomMedia exercise={ex} isOffline={isOffline} />
                     </div>
+                    {isStudentView && (
+                      <div className="exercise-progress-controls">
+                        <input
+                          type="number"
+                          className="form-input exercise-weight-input"
+                          placeholder="kg"
+                          min="0"
+                          step="0.5"
+                          value={exProgress?.actualWeight || ''}
+                          onChange={e => handleExerciseWeightChange(workout, i, e.target.value)}
+                          aria-label={`Carga utilizada no exercício ${i + 1}`}
+                        />
+                        <input
+                          type="checkbox"
+                          className="exercise-checkbox"
+                          checked={exProgress?.completed === true}
+                          onChange={() => handleToggleExercise(workout, i)}
+                          aria-label={`Marcar exercício ${i + 1} como concluído`}
+                        />
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="workout-actions">
-                <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
-                  <MessageCircle size={14} /> WhatsApp
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={() => { generateWorkoutPDF(workout); addToast('PDF gerado!', 'success'); }}>
-                  <FileDown size={14} /> PDF
-                </button>
-                <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)}><Edit2 size={16} /></button>
-                <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout.id)} style={{ color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                {isStudentView && workout.source === 'rascunho_anamnese' && (
+                  <button className={isCompleted ? "btn btn-success btn-sm" : "btn btn-outline btn-sm"} onClick={() => handleTogglePublishedWorkout(workout)}>
+                    {isCompleted ? 'Marcar como pendente' : 'Marcar como concluído'}
+                  </button>
+                )}
+                {!isStudentView && (
+                  <button className="btn btn-whatsapp btn-sm" onClick={() => openWhatsApp(workout)}>
+                    <MessageCircle size={14} /> WhatsApp
+                  </button>
+                )}
+                {renderPDFButton(workout)}
+                {!isStudentView && (
+                  <>
+                    <button className="btn btn-ghost btn-icon" onClick={() => openEdit(workout)} aria-label={`Editar treino ${workout.name || ''}`}><Edit2 size={16} /></button>
+                  </>
+                )}
+                {!isStudentView && (
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino" aria-label={`Excluir treino ${workout.name || ''}`}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
+                {canDeleteStudentAI && (
+                  <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA" aria-label={`Excluir treino da IA ${workout.name || ''}`}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
+      {archivedFiltered.length > 0 && (
+        <>
+          <h3 style={{ margin: '28px 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Dumbbell size={20} style={{ color: 'var(--text-muted)' }} /> Arquivados
+          </h3>
+          <div className="workouts-grid archived-workouts-grid">
+            {archivedFiltered.map(workout => (
+              <div key={workout.scheduleId || workout.id} className="card workout-card archived-workout-card">
+                <div className="workout-header">
+                  <div>
+                    <h4 style={{ fontSize: '1.05rem', marginBottom: '4px' }}>{workout.name}</h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{workout.description}</p>
+                  </div>
+                  <span className="badge badge-secondary">Arquivado</span>
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                  {workout.exercises?.length || 0} exercício(s)
+                </p>
+                <div className="workout-actions">
+                  {renderPDFButton(workout)}
+                  {!isStudentView && (
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino" aria-label={`Excluir treino ${workout.name || ''}`}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {isStudentView && canStudentDeleteAIWorkout(workout) && (
+                    <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(workout)} style={{ color: 'var(--danger)' }} title="Excluir treino da IA" aria-label={`Excluir treino da IA ${workout.name || ''}`}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Workout Creation/Edit Modal */}
-      {showModal && (
+      {showModal && !isStudentView && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
               <h3>{editingWorkout ? 'Editar Treino' : 'Novo Treino'}</h3>
-              <button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => setShowModal(false)} aria-label="Fechar modal"><X size={20} /></button>
             </div>
             <form onSubmit={handleSave}>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
@@ -205,8 +535,10 @@ export default function Workouts() {
                           </div>
                         </div>
                         <input className="form-input" placeholder="Observações (opcional)" value={ex.notes} onChange={e => updateExercise(idx, 'notes', e.target.value)} style={{ gridColumn: '1 / -1' }} />
+                        <input className="form-input" placeholder="Link do vídeo no YouTube (opcional)" value={ex.videoUrl || ''} onChange={e => updateExercise(idx, 'videoUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
+                        <input className="form-input" placeholder="URL da imagem (opcional)" value={ex.imageUrl || ''} onChange={e => updateExercise(idx, 'imageUrl', e.target.value)} style={{ gridColumn: '1 / -1' }} />
                       </div>
-                      <button type="button" className="exercise-form-delete" onClick={() => removeExercise(idx)} title="Remover">
+                      <button type="button" className="exercise-form-delete" onClick={() => removeExercise(idx)} title="Remover" aria-label={`Remover exercício ${idx + 1}`}>
                         <X size={16} />
                       </button>
                     </div>
@@ -224,12 +556,12 @@ export default function Workouts() {
       )}
 
       {/* WhatsApp Send Modal */}
-      {showWhatsAppModal && (
+      {showWhatsAppModal && !isStudentView && (
         <div className="modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h3>📱 Enviar via WhatsApp</h3>
-              <button className="modal-close" onClick={() => setShowWhatsAppModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => setShowWhatsAppModal(false)} aria-label="Fechar envio por WhatsApp"><X size={20} /></button>
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.9rem' }}>
               Enviar <strong>{selectedWorkout?.name}</strong> para qual aluno?
@@ -258,6 +590,30 @@ export default function Workouts() {
         </div>
       )}
 
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, name: '', source: null })}
+        onConfirm={confirmDeleteWorkout}
+        title="Excluir treino"
+        message={`Tem certeza que deseja excluir ${confirmDelete.name}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
+
+      <Modal
+        open={pdfAlert.open}
+        onClose={() => setPdfAlert({ ...pdfAlert, open: false })}
+        title="PDF"
+        footer={
+          <button type="button" className="btn btn-primary" onClick={() => setPdfAlert({ ...pdfAlert, open: false })}>
+            Entendi
+          </button>
+        }
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.55 }}>{pdfAlert.message}</p>
+      </Modal>
+
       <style>{`
         .workouts-grid {
           display: grid;
@@ -266,6 +622,7 @@ export default function Workouts() {
         }
         
         .workout-card { display: flex; flex-direction: column; gap: 14px; }
+        .archived-workout-card { opacity: 0.72; }
         
         .workout-header {
           display: flex;
@@ -286,7 +643,132 @@ export default function Workouts() {
           gap: 10px;
           padding: 8px 12px;
           background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.04);
           border-radius: var(--radius-sm);
+          transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        .workout-exercise:hover {
+          background: rgba(255,255,255,0.035);
+          border-color: rgba(255,255,255,0.08);
+        }
+
+        .exercise-media {
+          width: 166px;
+          min-width: 166px;
+          min-height: 58px;
+          display: flex;
+          align-items: stretch;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
+        .exercise-media-thumb {
+          width: 58px;
+          min-width: 58px;
+          height: 58px;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(255,107,53,0.16), rgba(6,182,212,0.08));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px rgba(0,0,0,0.12);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+        }
+
+        .exercise-media-thumb-future {
+          background: linear-gradient(135deg, rgba(6,182,212,0.14), rgba(255,255,255,0.04));
+        }
+
+        .exercise-media-thumb-placeholder {
+          background: linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,255,255,0.035));
+        }
+
+        .exercise-media-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .exercise-media-fallback {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          width: 100%;
+          height: 100%;
+          color: rgba(255,255,255,0.9);
+        }
+
+        .exercise-media-status {
+          max-width: 50px;
+          padding: 2px 5px;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 999px;
+          background: rgba(0,0,0,0.22);
+          font-size: 0.48rem;
+          font-weight: 700;
+          line-height: 1.05;
+          text-align: center;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .exercise-media-meta {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 2px;
+          color: var(--text-muted);
+        }
+
+        .exercise-media-badges {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 3px;
+        }
+
+        .exercise-media-badge {
+          max-width: 84px;
+          padding: 2px 5px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 999px;
+          background: rgba(255,255,255,0.045);
+          color: var(--text-muted);
+          font-size: 0.56rem;
+          font-weight: 700;
+          line-height: 1.1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .exercise-media-badge-primary {
+          border-color: rgba(255,107,53,0.28);
+          background: rgba(255,107,53,0.1);
+          color: var(--text-primary);
+        }
+
+        .exercise-media-badge-level {
+          max-width: 72px;
+          color: rgba(255,255,255,0.72);
+        }
+
+        .exercise-media-meta p {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          margin: 2px 0 0;
+          font-size: 0.58rem;
+          line-height: 1.2;
         }
         
         .exercise-number {
@@ -306,11 +788,136 @@ export default function Workouts() {
         .exercise-info {
           display: flex;
           flex-direction: column;
+          flex: 1;
+          min-width: 0;
         }
         
         .exercise-info strong { font-size: 0.85rem; }
         .exercise-info span { font-size: 0.75rem; color: var(--text-muted); }
-        
+
+        .exercise-custom-media {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          max-width: 100%;
+          margin-top: 8px;
+        }
+
+        .exercise-custom-image {
+          display: block;
+          width: min(180px, 100%);
+          max-width: 100%;
+          max-height: 120px;
+          object-fit: cover;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-frame-animation {
+          position: relative;
+          display: block;
+          width: min(180px, 100%);
+          max-width: 100%;
+          aspect-ratio: 3 / 2;
+          max-height: 120px;
+          overflow: hidden;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-frame-animation .exercise-frame-image {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          max-height: none;
+          border: 0;
+          border-radius: inherit;
+          background: transparent;
+        }
+
+        .exercise-frame-start { animation: exercise-frame-start 1.4s steps(1, end) infinite; }
+        .exercise-frame-end { animation: exercise-frame-end 1.4s steps(1, end) infinite; }
+
+        @keyframes exercise-frame-start {
+          0%, 49.99% { opacity: 1; }
+          50%, 100% { opacity: 0; }
+        }
+
+        @keyframes exercise-frame-end {
+          0%, 49.99% { opacity: 0; }
+          50%, 100% { opacity: 1; }
+        }
+
+        .exercise-image-fallback,
+        .exercise-video-link {
+          display: inline-flex;
+          align-items: center;
+          min-height: 30px;
+          padding: 5px 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.12);
+          font-size: 0.72rem;
+          font-weight: 700;
+        }
+
+        .exercise-image-fallback {
+          color: var(--text-muted);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .exercise-video-link {
+          color: var(--primary);
+          background: rgba(255,107,53,0.1);
+          text-decoration: none;
+        }
+
+        .exercise-video-link-offline {
+          color: var(--text-muted);
+          background: rgba(255,255,255,0.06);
+          cursor: not-allowed;
+          opacity: 0.75;
+        }
+
+        .exercise-recorded-weight {
+          display: inline-block;
+          margin-top: 2px;
+          padding: 1px 6px;
+          border: 1px solid rgba(6,182,212,0.28);
+          border-radius: 999px;
+          background: rgba(6,182,212,0.1);
+          color: var(--text-primary);
+          font-size: 0.62rem;
+          font-weight: 600;
+        }
+
+        .exercise-progress-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+          margin-left: auto;
+        }
+
+        .exercise-weight-input {
+          width: 64px;
+          min-width: 64px;
+          padding: 4px 6px;
+          font-size: 0.75rem;
+          text-align: center;
+        }
+
+        .exercise-checkbox {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+          accent-color: var(--primary, #ff6b35);
+          flex-shrink: 0;
+        }
+
         .workout-actions {
           display: flex;
           gap: 8px;
@@ -381,6 +988,12 @@ export default function Workouts() {
 
         @media (max-width: 768px) {
           .workouts-grid { grid-template-columns: 1fr; }
+          .workout-exercise { align-items: flex-start; flex-wrap: wrap; }
+          .exercise-progress-controls { flex-wrap: wrap; margin-left: 0; width: 100%; justify-content: flex-end; }
+          .exercise-media { width: 128px; min-width: 128px; }
+          .exercise-media-badge { max-width: 66px; }
+          .exercise-media-badge-level { display: none; }
+          .exercise-media-meta p { display: none; }
           .exercise-form-row { grid-template-columns: repeat(2, 1fr); }
         }
       `}</style>

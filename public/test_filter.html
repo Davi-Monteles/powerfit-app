@@ -1,0 +1,19 @@
+﻿<!DOCTYPE html>
+<html>
+<head><style>body { background-color: #0f172a; color: white; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }</style></head>
+<body>
+<svg viewBox="0 0 600 1000" style="height: 95vh;" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <filter id="removeWhite">
+      <feColorMatrix type="luminanceToAlpha" result="lum" />
+      <feComponentTransfer in="lum" result="mask">
+        <feFuncA type="linear" slope="-15" intercept="14" />
+      </feComponentTransfer>
+      <feComposite in="SourceGraphic" in2="mask" operator="in" />
+    </filter>
+  </defs>
+  <image href="anatomy-front.jpg" width="600" height="1000" x="0" y="0" filter="url(#removeWhite)" />
+  <polygon points="230,160 370,160 380,240 300,260 220,240" fill="rgba(34, 197, 94, 0.45)" stroke="rgba(34, 197, 94, 0.8)" stroke-width="2" />
+</svg>
+</body>
+</html>

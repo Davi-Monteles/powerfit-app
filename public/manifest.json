@@ -1,19 +1,29 @@
 {
-  "name": "PowerFit - Gestão de Treinos",
+  "name": "PowerFit",
   "short_name": "PowerFit",
-  "description": "Plataforma completa para personal trainers gerenciarem treinos e alunos acompanharem sua evolução.",
+  "description": "App instalável para personal trainers e alunos acompanharem treinos.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0B1120",
-  "theme_color": "#FF6B35",
-  "orientation": "portrait-primary",
-  "categories": ["fitness", "health", "lifestyle"],
+  "theme_color": "#0B1120",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
     }
   ]
 }

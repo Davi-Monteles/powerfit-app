@@ -3,27 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#FF6B35" />
-    <meta name="description" content="PowerFit - Plataforma completa para personal trainers gerenciarem treinos e alunos acompanharem sua evolução." />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="PowerFit" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/pwa-icon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <title>PowerFit - Gestão de Treinos</title>
+    <meta name="theme-color" content="#0B1120" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="application-name" content="PowerFit" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="PowerFit" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>PowerFit</title>
+    <style>
+      .app-boot-splash {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 35%, rgba(255, 107, 53, 0.14), transparent 34%), #0B1120;
+        color: #F1F5F9;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      .app-boot-splash strong {
+        display: block;
+        font-size: 1.15rem;
+        letter-spacing: 0.02em;
+      }
+
+      .app-boot-splash span {
+        display: block;
+        margin-top: 6px;
+        color: #94A3B8;
+        font-size: 0.82rem;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="root">
+      <div class="app-boot-splash" aria-label="Carregando PowerFit">
+        <div>
+          <strong>PowerFit</strong>
+          <span>Carregando app...</span>
+        </div>
+      </div>
+    </div>
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW registered:', reg.scope))
-            .catch(err => console.log('SW registration failed:', err));
-        });
+      // Version-based cache buster: clears corrupted state on version bump
+      var APP_VERSION = 'v2.1';
+      if (localStorage.getItem('powerfit_app_version') !== APP_VERSION) {
+        // Clear only the session/auth, not user data
+        localStorage.removeItem('powerfit_current_user');
+        localStorage.setItem('powerfit_app_version', APP_VERSION);
+        console.log('[PowerFit] Cache cleared for version', APP_VERSION);
       }
+      // Silent error logging (no more alerts)
+      window.addEventListener('error', function(e) {
+        console.error('[PowerFit] JS Error:', e.message, 'at line', e.lineno);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('[PowerFit] Promise Error:', e.reason);
+      });
     </script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
