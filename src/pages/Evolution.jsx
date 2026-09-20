@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { getStudents, getEvolutionByStudent, saveEvolutionEntry, deleteEvolutionEntry } from '../lib/storage';
-import { useToast } from '../App';
+import { getStudents, getEvolutionByStudent, saveEvolutionEntry, deleteEvolutionEntry, forceSyncData, resolveStudentProfileFromCache } from '../lib/storage';
+import { useStorageSync } from '../lib/useStorageSync';
+import { useAuth, useToast } from '../lib/app-context';
 import { TrendingUp, Plus, X, Trash2, Calendar, Scale, Ruler } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const metrics = [
   { key: 'weight', label: 'Peso (kg)', color: '#FF6B35' },
   { key: 'bodyFat', label: 'Gordura (%)', color: '#3B82F6' },
   { key: 'chest', label: 'Peito (cm)', color: '#22C55E' },
   { key: 'waist', label: 'Cintura (cm)', color: '#F59E0B' },
-  { key: 'hip', label: 'Quadril (cm)', color: '#8B5CF6' },
+  { key: 'hip', label: 'Quadril (cm)', color: '#22d3ee' },
   { key: 'arm', label: 'Braço (cm)', color: '#EC4899' },
   { key: 'thigh', label: 'Coxa (cm)', color: '#06B6D4' },
 ];
@@ -29,31 +31,31 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Evolution() {
-  const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState('');
-  const [evolutionData, setEvolutionData] = useState([]);
-  const [activeMetrics, setActiveMetrics] = useState(['weight', 'bodyFat']);
+  const [activeMetrics, setActiveMetrics] = useState(['weight', 'waist', 'hip', 'chest']);
   const [showModal, setShowModal] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, date: '' });
+  const { user } = useAuth();
   const addToast = useToast();
+  useStorageSync();
+  const isStudentView = user?.type === 'aluno';
+  const studentProfile = isStudentView ? (resolveStudentProfileFromCache(user) || user) : null;
+  const students = isStudentView ? (studentProfile ? [studentProfile] : []) : getStudents();
+  const selectedStudentId = isStudentView
+    ? studentProfile?.id || studentProfile?.studentId || studentProfile?.student_id || ''
+    : students.some(student => student.id === selectedStudent) ? selectedStudent : students[0]?.id || '';
+  const currentStudent = isStudentView ? studentProfile : students.find(s => s.id === selectedStudentId);
+  const currentStudentId = currentStudent?.id || currentStudent?.studentId || currentStudent?.student_id || '';
 
   const today = new Date().toISOString().split('T')[0];
   const emptyForm = { date: today, weight: '', bodyFat: '', chest: '', waist: '', hip: '', arm: '', thigh: '' };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    const studentsList = getStudents();
-    setStudents(studentsList);
-    if (studentsList.length > 0) {
-      setSelectedStudent(studentsList[0].id);
-    }
-  }, []);
+    forceSyncData().catch(() => {});
+  }, [isStudentView, user?.id, user?.email]);
 
-  useEffect(() => {
-    if (selectedStudent) {
-      const data = getEvolutionByStudent(selectedStudent);
-      setEvolutionData(data);
-    }
-  }, [selectedStudent]);
+  const evolutionData = selectedStudentId ? getEvolutionByStudent(selectedStudentId, currentStudent?.email) : [];
 
   const toggleMetric = (key) => {
     setActiveMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
@@ -66,10 +68,15 @@ export default function Evolution() {
 
   const handleSave = (e) => {
     e.preventDefault();
-    if (!selectedStudent) { addToast('Selecione um aluno', 'error'); return; }
+    const studentId = selectedStudentId || currentStudentId;
+    if (!studentId) { addToast('Aluno nao encontrado', 'error'); return; }
     if (!form.date) { addToast('Selecione a data', 'error'); return; }
+    if (!['weight', 'waist', 'hip', 'chest'].some(key => form[key])) {
+      addToast('Preencha pelo menos peso, cintura, quadril ou peito', 'error');
+      return;
+    }
     
-    const entry = { ...form, studentId: selectedStudent };
+    const entry = { ...form, studentId, studentEmail: currentStudent?.email, personalId: currentStudent?.personalId || currentStudent?.personal_id };
     // Convert numeric fields
     metrics.forEach(m => {
       if (entry[m.key]) entry[m.key] = parseFloat(entry[m.key]);
@@ -77,20 +84,23 @@ export default function Evolution() {
     });
 
     saveEvolutionEntry(entry);
-    setEvolutionData(getEvolutionByStudent(selectedStudent));
     setShowModal(false);
     setForm(emptyForm);
     addToast('Medida registrada!', 'success');
   };
 
-  const handleDeleteEntry = (id) => {
-    if (!confirm('Excluir este registro?')) return;
+  const handleDeleteEntry = (id, date) => {
+    setConfirmDelete({ open: true, id, date: date || 'este registro' });
+  };
+
+  const confirmDeleteEntry = () => {
+    const { id } = confirmDelete;
+    if (!id) return;
     deleteEvolutionEntry(id);
-    setEvolutionData(getEvolutionByStudent(selectedStudent));
+    setConfirmDelete({ open: false, id: null, date: '' });
     addToast('Registro removido', 'info');
   };
 
-  const currentStudent = students.find(s => s.id === selectedStudent);
   const latestData = evolutionData[evolutionData.length - 1];
   const previousData = evolutionData[evolutionData.length - 2];
 
@@ -103,23 +113,25 @@ export default function Evolution() {
   return (
     <div className="page-container animate-fade-in">
       <div className="page-header">
-        <h2><TrendingUp size={24} style={{ color: 'var(--primary)' }} /> Evolução do Aluno</h2>
+        <h2><TrendingUp size={24} style={{ color: 'var(--primary)' }} /> {isStudentView ? 'Minha Evolucao' : 'Evolução do Aluno'}</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select className="form-select" style={{ maxWidth: '220px' }} value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)}>
-            {students.length === 0 && <option value="">Nenhum aluno</option>}
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudent}>
+          {!isStudentView && (
+            <select className="form-select" style={{ maxWidth: '220px' }} value={selectedStudentId} onChange={e => setSelectedStudent(e.target.value)}>
+              {students.length === 0 && <option value="">Nenhum aluno</option>}
+              {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={!selectedStudentId && !currentStudentId}>
             <Plus size={18} /> Nova Medida
           </button>
         </div>
       </div>
 
-      {!selectedStudent || students.length === 0 ? (
+      {!selectedStudentId || students.length === 0 ? (
         <div className="empty-state">
           <TrendingUp size={64} />
           <h3>Nenhum aluno selecionado</h3>
-          <p>Cadastre alunos primeiro para acompanhar a evolução</p>
+          <p>{isStudentView ? 'Seu perfil de aluno nao foi encontrado.' : 'Cadastre alunos primeiro para acompanhar a evolução'}</p>
         </div>
       ) : (
         <>
@@ -148,7 +160,7 @@ export default function Evolution() {
                 </div>
               </div>
               <div className="stat-card">
-                <div className="stat-icon purple"><Calendar size={24} color="white" /></div>
+                <div className="stat-icon cyan"><Calendar size={24} color="white" /></div>
                 <div className="stat-info">
                   <h4>{evolutionData.length}</h4>
                   <p>Avaliações Registradas</p>
@@ -246,7 +258,7 @@ export default function Evolution() {
                         <td>{entry.arm || '—'}</td>
                         <td>{entry.thigh || '—'}</td>
                         <td>
-                          <button className="btn btn-ghost btn-icon" onClick={() => handleDeleteEntry(entry.id)} style={{ color: 'var(--danger)' }}>
+                          <button className="btn btn-ghost btn-icon" onClick={() => handleDeleteEntry(entry.id, new Date(entry.date).toLocaleDateString('pt-BR'))} style={{ color: 'var(--danger)' }}>
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -317,6 +329,17 @@ export default function Evolution() {
           </div>
         </div>
       )}
+      {/* Confirm Delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, id: null, date: '' })}
+        onConfirm={confirmDeleteEntry}
+        title="Excluir registro"
+        message={`Tem certeza que deseja excluir o registro de ${confirmDelete.date}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

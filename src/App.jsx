@@ -1,8 +1,12 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { getCurrentUser, logout, seedDemoData, getTheme, setTheme as saveTheme } from './lib/storage';
+import { getAuthenticatedProfile, getCurrentUser, logout, getTheme, setTheme as saveTheme, getUserPlan, isStudentPremium } from './lib/storage';
+import { supabase } from './lib/supabaseClient';
+import { stripSensitiveSessionFields } from './lib/security';
+import { AuthContext, ToastContext, ThemeContext, useAuth } from './lib/app-context';
 import Landing from './pages/Landing';
 import Auth from './pages/Auth';
+import Upgrade from './pages/Upgrade';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Workouts from './pages/Workouts';
@@ -10,65 +14,115 @@ import Evolution from './pages/Evolution';
 import Schedule from './pages/Schedule';
 import Photos from './pages/Photos';
 import StudentDashboard from './pages/StudentDashboard';
+import BodyTargets from './pages/BodyTargets';
 import Settings from './pages/Settings';
+import MasterDashboard from './pages/MasterDashboard';
 import StudentHistory from './pages/StudentHistory';
-import Atlas from './pages/Atlas';
-import Plans from './pages/Plans';
 import Sidebar from './components/Sidebar';
 import Toast from './components/Toast';
+import { PWAInstallProvider } from './hooks/usePWAInstall';
+import PricingPlans from './pages/PricingPlans';
+import MyPlan from './pages/MyPlan';
+import PersonalMarcio from './pages/PersonalMarcio';
+import ResetPassword from './pages/ResetPassword';
+import { AboutPage, PrivacyPage, SecurityPage, TermsPage, UpdatesPage } from './pages/PublicInfoPages';
+import { ensurePreviewDemoSeed, getPreviewDemoNotice } from './lib/preview-environment';
 
-// Auth Context
-const AuthContext = createContext(null);
-export const useAuth = () => useContext(AuthContext);
+const demoModeEnabled = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
 
-// Toast Context
-const ToastContext = createContext(null);
-export const useToast = () => useContext(ToastContext);
-
-// Theme Context
-const ThemeContext = createContext(null);
-export const useTheme = () => useContext(ThemeContext);
-
-function ProtectedRoute({ children, allowedType }) {
+function ProtectedRoute({ children, allowedType, requirePlan }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/auth" replace />;
-  if (allowedType && user.type !== allowedType) {
-    return <Navigate to={user.type === 'aluno' ? '/aluno' : '/dashboard'} replace />;
+  
+  const allowedTypes = Array.isArray(allowedType) ? allowedType : (allowedType ? [allowedType] : null);
+  if (allowedTypes && !allowedTypes.includes(user.type)) {
+    return <Navigate to={user.type === 'aluno' ? '/aluno' : user.type === 'master' ? '/master' : user.type === 'personal' ? '/dashboard' : '/auth'} replace />;
   }
+  
+  if (requirePlan && user.type === 'personal') {
+    const plan = getUserPlan();
+    if (!plan) return <Navigate to="/planos" replace />;
+  }
+  
   return children;
 }
 
 function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const previewNotice = getPreviewDemoNotice(undefined, demoModeEnabled);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main style={{ flex: 1, marginLeft: 'var(--sidebar-width, 0px)', transition: 'margin-left 0.3s ease' }}>
-        <div className="mobile-header" style={{ display: 'none' }}>
-          <button className="btn btn-ghost btn-icon" onClick={() => setSidebarOpen(true)}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
+    <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
+      {previewNotice && (
+        <div style={{ background: 'rgba(15, 23, 42, 0.96)', color: '#CBD5E1', textAlign: 'center', padding: '5px 10px', fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.35, borderBottom: '1px solid rgba(148, 163, 184, 0.18)', boxSizing: 'border-box', width: '100%', zIndex: 9999 }}>
+          {previewNotice}
         </div>
-        <style>{`
-          @media (min-width: 769px) { main { --sidebar-width: 260px; } }
-          @media (max-width: 768px) {
-            main { --sidebar-width: 0px; }
-            .mobile-header { display: flex !important; align-items: center; padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
-          }
-        `}</style>
-        {children}
-      </main>
+      )}
+      {isOffline && (
+        <div style={{ background: '#FF4500', color: '#fff', textAlign: 'center', padding: '6px', fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.35, overflowWrap: 'break-word', boxSizing: 'border-box', width: '100%', zIndex: 9999 }}>
+          ⚠️ Você está offline. Algumas funções, como IA, login e sincronização, precisam de internet. Quando a conexão voltar, atualize a página para sincronizar.
+        </div>
+      )}
+      <div style={{ display: 'flex', flex: 1 }}>
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main style={{ flex: 1, marginLeft: 'var(--sidebar-width, 0px)', transition: 'margin-left 0.3s ease', display: 'flex', flexDirection: 'column' }}>
+          <div className="mobile-header" style={{ display: 'none' }}>
+            <button className="btn btn-ghost btn-icon" onClick={() => setSidebarOpen(true)} aria-label="Abrir menu">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          </div>
+          <style>{`
+            @media (min-width: 769px) { main { --sidebar-width: 260px; } }
+            @media (max-width: 768px) {
+              main { --sidebar-width: 0px; }
+              .mobile-header { display: flex !important; align-items: center; padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+            }
+          `}</style>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
 
 export default function App() {
-  const [user, setUser] = useState(getCurrentUser());
+  const [user, setUser] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [theme, setThemeState] = useState(getTheme());
+  const [loadingApp, setLoadingApp] = useState(true);
 
-  useEffect(() => { seedDemoData(); }, []);
+  useEffect(() => { 
+    const initAuth = async () => {
+      try {
+        ensurePreviewDemoSeed(undefined, undefined, demoModeEnabled);
+        const { data: { session } } = await supabase.auth.getSession();
+        const profile = session?.user
+          ? await getAuthenticatedProfile(session.user)
+          : (demoModeEnabled ? getCurrentUser() : null);
+        const safeProfile = profile ? stripSensitiveSessionFields(profile) : null;
+        if (safeProfile?.type === 'aluno') safeProfile.isPremium = isStudentPremium(safeProfile);
+        setUser(safeProfile);
+      } catch {
+        setUser(demoModeEnabled ? getCurrentUser() : null);
+      } finally {
+        setLoadingApp(false);
+      }
+    };
+
+    initAuth();
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -81,7 +135,7 @@ export default function App() {
   };
 
   const handleLogin = (userData) => setUser(userData);
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = async () => { await logout(); setUser(null); };
 
   const addToast = (message, type = 'success') => {
     const id = Date.now();
@@ -90,32 +144,59 @@ export default function App() {
   };
 
   const isStudent = user?.type === 'aluno';
+  const hasStudentPremium = isStudentPremium(user);
+
+  if (loadingApp) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>Carregando Perfil...</div>;
+  }
 
   return (
     <AuthContext.Provider value={{ user, login: handleLogin, logout: handleLogout }}>
       <ToastContext.Provider value={addToast}>
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
-          <BrowserRouter>
+          <PWAInstallProvider>
+            <BrowserRouter>
             <Routes>
               <Route path="/" element={<Landing />} />
-              <Route path="/auth" element={user ? <Navigate to={isStudent ? '/aluno' : '/dashboard'} replace /> : <Auth onLogin={handleLogin} />} />
+              <Route path="/personal/marcio" element={<PersonalMarcio />} />
+              <Route path="/sobre" element={<AboutPage />} />
+              <Route path="/atualizacoes" element={<UpdatesPage />} />
+              <Route path="/termos" element={<TermsPage />} />
+              <Route path="/privacidade" element={<PrivacyPage />} />
+              <Route path="/seguranca" element={<SecurityPage />} />
+              <Route path="/upgrade" element={<ProtectedRoute allowedType="aluno"><Upgrade /></ProtectedRoute>} />
+              <Route path="/auth" element={user?.type ? <Navigate to={isStudent ? '/aluno' : user.type === 'master' ? '/master' : '/dashboard'} replace /> : <Auth onLogin={handleLogin} />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               {/* Personal Trainer Routes */}
-              <Route path="/dashboard" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/students" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Students /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/workouts" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Workouts /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/evolution" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Evolution /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/schedule" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Schedule /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/photos" element={<ProtectedRoute allowedType="personal"><DashboardLayout><Photos /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/history/:studentId" element={<ProtectedRoute allowedType="personal"><DashboardLayout><StudentHistory /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><DashboardLayout><Settings /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/plans" element={<ProtectedRoute><DashboardLayout><Plans /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/atlas" element={<ProtectedRoute><DashboardLayout><Atlas /></DashboardLayout></ProtectedRoute>} />
-              {/* Student Route */}
-              <Route path="/aluno" element={<ProtectedRoute allowedType="aluno"><DashboardLayout><StudentDashboard /></DashboardLayout></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <Toast toasts={toasts} />
-          </BrowserRouter>
+              <Route path="/planos" element={user?.type === 'personal' ? <PricingPlans /> : <Navigate to="/auth" replace />} />
+                  <Route path="/dashboard" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Dashboard /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/students" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Students /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/workouts" element={<ProtectedRoute><DashboardLayout><Workouts /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/evolution" element={<ProtectedRoute allowedType={['personal', 'aluno']} requirePlan><DashboardLayout><Evolution /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/schedule" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><Schedule /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/photos" element={<ProtectedRoute allowedType={['personal', 'aluno']} requirePlan><DashboardLayout><Photos /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/history/:studentId" element={<ProtectedRoute allowedType="personal" requirePlan><DashboardLayout><StudentHistory /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/meu-plano" element={<ProtectedRoute allowedType="personal"><DashboardLayout><MyPlan /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/settings" element={<ProtectedRoute><DashboardLayout><Settings /></DashboardLayout></ProtectedRoute>} />
+                  {/* Student Route */}
+                  <Route path="/aluno" element={<ProtectedRoute allowedType="aluno"><DashboardLayout><StudentDashboard /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="/ai-chat" element={<ProtectedRoute allowedType="aluno">{hasStudentPremium ? <DashboardLayout><StudentDashboard /></DashboardLayout> : <Navigate to="/aluno" replace />}</ProtectedRoute>} />
+                  <Route path="/body-targets" element={
+                    <ProtectedRoute allowedType="aluno">
+                      {hasStudentPremium ? (
+                        <DashboardLayout><BodyTargets /></DashboardLayout>
+                      ) : (
+                        <Navigate to="/aluno" replace />
+                      )}
+                    </ProtectedRoute>
+                  } />
+                  {/* Master Route */}
+                  <Route path="/master" element={<ProtectedRoute allowedType="master"><DashboardLayout><MasterDashboard /></DashboardLayout></ProtectedRoute>} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+                <Toast toasts={toasts} />
+            </BrowserRouter>
+          </PWAInstallProvider>
         </ThemeContext.Provider>
       </ToastContext.Provider>
     </AuthContext.Provider>
